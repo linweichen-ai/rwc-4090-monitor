@@ -1,5 +1,5 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status31";
+window.RWC_ASSET_VERSION = "20261025-status32";
 window.RWC_CONFIG = {
   "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
   "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
@@ -10,13 +10,13 @@ window.RWC_CONFIG = {
   "futureToleranceMs": 60000,
   "apiFallbackAgeMs": 120000,
   "stage": {
-    "delivery": "当前论文为V6私有预备稿：入口提供在线全文、8页PDF和已验收的逐图附注。",
-    "deploy": "本次修订仅涉及前端请求处理，后台采集与发布保持原有流程。",
+    "delivery": "当前私有论文入口提供V6在线全文、8页PDF，以及已验收的逐图附注和复现协议附注。",
+    "deploy": "后台继续沿用原采集与发布流程；本轮预检曾见采样年龄246秒的旧读数，持续新鲜度仍未通过。",
     "nextSteps": [
-      "验证实际网页连续新鲜度，以及停更后过期、恢复后采用最新数据的完整过程。",
-      "继续核实可长期在线的HTTPS数据入口；离线验收不等于持续传播时效已解决。"
+      "待提供可长期在线的HTTPS数据入口。",
+      "验证连续更新、停更后过期，以及恢复后采用最新数据的完整过程。"
     ],
-    "validity": "论文仍为V6初稿，本轮没有新增科学实验或检测成绩。连续网页新鲜度与停更恢复仍待验证。",
-    "achievement": "请求截止与错误分类修订已通过离线验收：25个场景、58项断言及26项旧诊断检查。V6在线全文和私有索引保持。"
+    "validity": "V6仍为初步稿；本轮仅补充既有证据说明，没有新增科学实验或检测成绩。持续新鲜度与停更恢复尚未通过。",
+    "achievement": "补齐20张正常支持图既有诊断的计数、特征处理、索引一致率和来源说明，作为独立附注提供；V6正文和PDF保持不变。"
   }
 };
