@@ -89,15 +89,23 @@
 
   // ------------------------------------------------------ 数据接收（R08）
 
-  async function processEnvelope(env, source) {
+  // ctx（请求截止上下文）由 fetchOnce 传入；缺失时为离线 demo 的无请求
+  // 上下文调用（startDemo 路径），不设截止门。ctx.alive() 反映“请求仍拥有
+  // 状态且单调时钟未到截止”。返回 {dead:true} 表示异步判定落在截止之后，
+  // 调用方不得再提交任何状态。
+  async function processEnvelope(env, source, ctx) {
     var now = Date.now();
     source = source === "api" ? "api" : "raw";
+    function alive() { return !ctx || ctx.alive(); }
     // 1) 全部结构/数值/时间校验
     var errors = V.validateEnvelope(env, now);
     var hash = null;
     if (errors.length === 0) {
       // 2) hash 复核（全部通过后才允许动守卫）
       hash = await C.sampleHash(env.sample);
+      // 截止门：异步 digest 可能在请求已超时/失去所有权后才返回；此后
+      // 无论结果正确与否都不得提交任何状态。
+      if (!alive()) return { dead: true };
       if (hash !== env.sample_hash) {
         errors.push({ code: E.SAMPLE_HASH_MISMATCH, detail: "" });
       }
@@ -110,38 +118,68 @@
         errors = errors.concat(guardResult.errors);
       }
     }
-    if (errors.length) {
-      // 坏数据：不 apply 守卫、不接受数据、不重置年龄；撤销“数据正常”
-      state.errors = errors;
-      state.mode = "error";
-      state.notice = null;
-      return;
+    // 固定“判定所需身份”：重复判定用本请求已固定的 prevHash，不从此后
+    // 可变的全局 state 猜测；sampledMs 在提交前固定。
+    // R3：存在校验错误时（如 sample 缺失或为 null）绝不能访问未经校验的
+    // env.sample 字段，否则 TypeError 会被外层误分流为 network/网络故障。
+    // sampledMs 仅在无校验错误（sample 结构已由 validateEnvelope 确认）时解析。
+    var sampledMs = errors.length
+      ? null
+      : V.parseIsoZ(env.sample.sampled_at);
+    var fixedPrevHash = ctx
+      ? ctx.prevHash
+      : (state.lastGood ? state.lastGood.hash : null);
+    var decision = errors.length
+      ? { kind: "rejected", errors: errors, env: env }
+      : { kind: (hash !== null && hash === fixedPrevHash)
+            ? "duplicate" : "accepted",
+          guardResult: guardResult, hash: hash,
+          sampledMs: sampledMs, env: env };
+    // 状态写入（接受与拒绝共用同一入口，内部无 await/锁/异步断点）。
+    function applyDecision() {
+      if (decision.kind === "rejected") {
+        // 坏数据：不 apply 守卫、不接受数据、不重置年龄；撤销“数据正常”
+        state.errors = decision.errors;
+        state.mode = "error";
+        state.notice = null;
+      } else {
+        // 4) 全部通过，提交序列状态
+        state.guard.apply(decision.guardResult);
+        var nowWall = Date.now();
+        var nowMono = performance.now();
+        // R07：年龄按 hash 取高水位；重复发布同一样本不续期
+        state.ageTracker.accept(decision.hash, decision.sampledMs,
+          nowWall, nowMono);
+        state.lastGood = {
+          env: env,
+          fetchedMs: nowWall,
+          sampledMs: decision.sampledMs,
+          publishedMs: V.parseIsoZ(env.published_at),
+          hash: decision.hash,
+          source: source
+        };
+        state.errors = [];
+        state.mode = "ok";
+        // 只有“已接受过旧实例且新实例不同”才提示实例变化；首次观察不提示
+        // 重启（页面可能在采集器运行很久之后才打开，首个序号未必是 1），
+        // 也不声称序号从 1 开始——当前序号以样本实际字段为准。
+        state.notice = decision.guardResult.restarted
+          ? "检测到采集器实例变化（新实例 " +
+            env.sample.collector_instance_id + "，当前采样序号 " +
+            env.sample.sample_seq + "）"
+          : null;
+      }
     }
-    // 4) 全部通过，才提交序列状态
-    state.guard.apply(guardResult);
-    var nowWall = Date.now();
-    var nowMono = performance.now();
-    var sampledMs = V.parseIsoZ(env.sample.sampled_at);
-    // R07：年龄按 hash 取高水位；重复发布同一样本不续期
-    state.ageTracker.accept(hash, sampledMs, nowWall, nowMono);
-    state.lastGood = {
-      env: env,
-      fetchedMs: nowWall,
-      sampledMs: sampledMs,
-      publishedMs: V.parseIsoZ(env.published_at),
-      hash: hash,
-      source: source
-    };
-    state.errors = [];
-    state.mode = "ok";
-    // 只有“已接受过旧实例且新实例不同”才提示实例变化；首次观察不提示
-    // 重启（页面可能在采集器运行很久后才打开，首个序号未必是 1），
-    // 也不声称序号从 1 开始——当前序号以样本实际字段为准。
-    state.notice = guardResult.restarted
-      ? "检测到采集器实例变化（新实例 " +
-        env.sample.collector_instance_id + "，当前采样序号 " +
-        env.sample.sample_seq + "）"
-      : null;
+    if (ctx) {
+      // 网络请求：最终截止门 + 状态写入 + 终结认领在同一个无 await 的同步
+      // 段内完成（ctx.commit）。最终截止门在写入前，只读一次时钟；写入后
+      // 不再重判，已在 7999ms 完成的接受不会因外层续体被推到 8000ms 而
+      // 改判超时。
+      return ctx.commit(decision, applyDecision);
+    }
+    // 离线 demo（无 ctx）：调用同一份状态提交逻辑，无 deadline/诊断/记账。
+    applyDecision();
+    return { committed: true, outcome: decision.kind };
   }
 
   // ------------------------------------------------------ 拉取
@@ -668,6 +706,14 @@
       out.declaredPublishedAt = diagSafeIso(env.published_at);
       out.declaredPublicationSeq = diagSafeInt(env.publication_seq);
     }
+    // 终结记录的固定观察字段（无则 null）：记账类型、完成单调时刻、
+    // 响应头收到墙钟时刻（仅观察事实，不参与冷却计算）。
+    out.accountingKind = typeof rec.accountingKind === "string"
+      ? rec.accountingKind : null;
+    out.finishedAtMono = typeof rec.finishedAtMono === "number"
+      && isFinite(rec.finishedAtMono) ? rec.finishedAtMono : null;
+    out.headersReceivedAt = typeof rec.headersReceivedAt === "number"
+      && isFinite(rec.headersReceivedAt) ? rec.headersReceivedAt : null;
     state.diag.last = out;
     return out;
   }
@@ -715,17 +761,144 @@
     }
     window.__RWC_REQUEST_URLS__.push(requestUrl);
     window.__RWC_REQUESTS__.push({ source: source, url: requestUrl });
+    // 8 秒预算起点为“实际 fetch 发起”的单调时刻（不含此前 API 预约锁等待）。
+    var fetchStartMono = performance.now();
+    var deadlineMono = fetchStartMono + cfg.fetchTimeoutMs;
     var controller = new AbortController();
-    var timer = setTimeout(function () { controller.abort(); },
-                           cfg.fetchTimeoutMs);
+    var settled = false;      // 本轮只允许终结一次
+    var timedOut = false;     // 已进入超时分支
+    var respRef = null;       // 已收到的响应（超时/正文失败记账需要头部）
+    // 仅作观察事实：响应头收到的墙钟时刻；不参与本轮冷却计算（冷却
+    // floor 仍按原算法，以原 receiptMs/errReceiptMs 起算）。
+    var headersReceivedAt = null;
+    // 本请求固定的“上一已接受样本”身份，重复判定在提交前固定，不随后
+    // 续可变的全局 state 变化。
     var prevHash = state.lastGood ? state.lastGood.hash : null;
+    // 本请求是否仍拥有状态且未到截止（单调时钟只进不退；≥8000 即拒绝）。
+    function reqAlive() {
+      return mySeq === state.requestSeq && !timedOut && !settled
+        && performance.now() < deadlineMono;
+    }
+    var reqCtx = { alive: reqAlive, commit: commit, prevHash: prevHash };
+
+    // 身份归属：本请求是否仍是“当前请求”（有权写共享诊断/状态）。
+    // 它与“本请求是否已终结”(settled) 是两个不同概念：已终结的请求仍可能
+    // 拥有一个可完成的冷却持久化，但不得重终结或覆盖后来请求的诊断。
+    function ownsNow() { return mySeq === state.requestSeq; }
+    // 每个实际 API 请求只认领一次记账：超时、拒绝、接受、坏数据、网络异常
+    // 任一终结分支都不会重复记账。记账为 fire-and-forget，不阻塞终结；
+    // 完成后仅在仍拥有当前诊断时更新冷却期限显示。
+    var accountingClaimed = false;
+    var accountingPromise = null;
+    function claimAccounting(kind, respArg, receiptMs) {
+      if (source !== "api" || accountingClaimed) return accountingPromise;
+      accountingClaimed = true;
+      accountingPromise = noteApiAttempt(startedAt, receiptMs, kind, respArg)
+        .then(function (note) {
+          if (ownsNow()) diagSetApiNextFromEvidence(note.nextMs, note.reason);
+          return note;
+        })
+        .catch(function () { /* 记账失败由 noteApiAttempt 内部降级处理 */ });
+      return accountingPromise;
+    }
+    // 超时终结分支：全函数唯一可终结超时的地方。仅终结一次；保留旧数据、
+    // 如实显示超时、释放本轮在途状态；不等待 digest 与冷却记账。
+    function onTimeout() {
+      if (settled) return;
+      // 已在截止前完成接受/拒绝判定的请求，超时分支不得再改判或再记账
+      settled = true;
+      timedOut = true;
+      try { controller.abort(); } catch (e) { /* 已中止则忽略 */ }
+      var receipt = Date.now();
+      state.errors = [{ code: E.FETCH_TIMEOUT, detail: "" }];
+      state.mode = "error";   // 保留旧读数（不修改 lastGood）
+      var reason = gotStatus === null
+        ? "请求超时（未收到响应头）"
+        : "已收到 HTTP " + gotStatus
+          + " 响应头，但获取或校验超时（正文/校验未在预算内完成）";
+      diagFinish({ source: source, finishedAt: finishTime(receipt),
+        httpStatus: gotStatus, outcome: "timeout", reason: reason });
+      claimAccounting("timeout", respRef, receipt);
+      if (ownsNow()) { state.inflight = false; diagClear(); }
+    }
+    // 若已失去所有权、已终结或单调时钟到截止，完成一次超时终结并返回 true。
+    function ensureTimeout() {
+      if (settled) return true;
+      if (timedOut || performance.now() >= deadlineMono) {
+        onTimeout();
+        return true;
+      }
+      return false;
+    }
+    var timer = setTimeout(onTimeout, cfg.fetchTimeoutMs);
     var gotStatus = null;   // L4：已收到响应头时的 HTTP 状态（用于正文超时）
     function failFetch(code, detail) {
+      if (settled) return;   // 超时后迟到的错误不得覆盖状态
       state.errors = [{ code: code, detail: detail || "" }];
       state.mode = "error";   // 保留旧读数（不修改 lastGood），撤销有效结论
     }
+    function diagFinishOnce(rec) {
+      if (settled) return;   // 成功/拒绝/异常/超时只终结一次
+      settled = true;
+      diagFinish(rec);
+    }
     function finishTime(ms) {
       return typeof ms === "number" && isFinite(ms) ? ms : Date.now();
+    }
+    // P1：真实完整接受/拒绝判定点的同步终结入口。整个函数无 await/锁/异步
+    // 断点：最后一次身份与单调截止检查（只读一次时钟，最终截止门在写入前）
+    // → 状态写入 → 认领 settled → 固定终结记录 → 写诊断 → 认领一次 API
+    // 记账（记账持久化异步完成，不阻塞终结）。已完成于 7999ms 的接受即使
+    // 外层续体被推到 8000ms 也不会再被改判：这里写入后 settled 已置位，
+    // 计时器/迟到续体只能退出。
+    function commit(decision, applySync) {
+      if (settled || mySeq !== state.requestSeq) return { committed: false };
+      if (performance.now() >= deadlineMono) {
+        onTimeout();
+        return { dead: true };
+      }
+      var finishWall = Date.now();
+      var finishMono = performance.now();
+      settled = true;   // 先认领终结，保证迟到续体不再提交
+      try {
+        applySync();
+      } catch (e) {
+        // 同步提交段异常按真实异常处理：不伪造成功、不静默吞掉；放开
+        // settled 让外层 catch 做唯一一次真实异常终结（本段无 await，
+        // 放开与抛出之间不存在竞争）。
+        settled = false;
+        throw e;
+      }
+      var outcome = decision.kind;
+      var accountingKind = null;
+      if (source === "api") {
+        accountingKind = outcome === "rejected" ? "bad-data" : "ok";
+        claimAccounting(accountingKind, respRef, receiptMs);
+      }
+      var rec;
+      if (outcome === "rejected") {
+        var codes = decision.errors.map(function (er) { return er.code; });
+        rec = { source: source, finishedAt: finishTime(finishWall),
+          httpStatus: gotStatus, outcome: "rejected",
+          reason: diagRejectReason(codes), env: decision.env,
+          accountingKind: accountingKind, finishedAtMono: finishMono,
+          headersReceivedAt: headersReceivedAt };
+      } else if (outcome === "duplicate") {
+        rec = { source: source, finishedAt: finishTime(finishWall),
+          httpStatus: gotStatus, outcome: "duplicate",
+          reason: "与上次通过校验的内容相同，年龄不续期",
+          env: decision.env, accountingKind: accountingKind,
+          finishedAtMono: finishMono, headersReceivedAt: headersReceivedAt };
+      } else {
+        rec = { source: source, finishedAt: finishTime(finishWall),
+          httpStatus: gotStatus, outcome: "accepted",
+          reason: "新样本通过校验（是否新鲜以采样年龄为准）",
+          env: decision.env, accountingKind: accountingKind,
+          finishedAtMono: finishMono, headersReceivedAt: headersReceivedAt };
+      }
+      diagFinish(rec);
+      return { committed: true, outcome: outcome,
+        finishedAtWall: finishWall, finishedAtMono: finishMono };
     }
     try {
       var resp = await fetch(requestUrl, {
@@ -736,60 +909,63 @@
         signal: controller.signal
       });
       if (mySeq !== state.requestSeq) return;  // 旧响应，丢弃
+      if (ensureTimeout()) return;
+      respRef = resp;
       var receiptMs = Date.now();
+      headersReceivedAt = receiptMs;   // 仅观察事实，不参与冷却计算
       gotStatus = diagSafeInt(resp.status);
       if (source === "api") {
         // 403/429：遵从限流头/退避；5xx/304 等也计入尝试，绝不假设 304
-        // 不占额度。
+        // 不占额度。拒绝判定在记账锁等待之前原子终结，记账只认一次、
+        // 不阻塞终结；记账晚于 8000ms 返回也不得把本次拒绝改写成超时。
         if (resp.status === 403 || resp.status === 429) {
-          var noteRL = await noteApiAttempt(startedAt, receiptMs,
-            "rate-limited", resp);
-          diagSetApiNextFromEvidence(noteRL.nextMs, noteRL.reason);
+          if (ensureTimeout()) return;
+          claimAccounting("rate-limited", resp, receiptMs);
           failFetch(E.HTTP_ERROR, "HTTP " + resp.status +
             "（Contents API 限流，已按 Reset/Retry-After 冷却）");
-          diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          diagFinishOnce({ source: source, finishedAt: finishTime(receiptMs),
             httpStatus: resp.status, outcome: "rejected",
-            reason: "HTTP " + resp.status + "（Contents API 限流；"
-              + noteRL.reason + "）" });
+            reason: "HTTP " + resp.status
+              + "（Contents API 限流，已按 Reset/Retry-After 冷却）" });
           return;
         }
         if (resp.status === 404) {
-          var note404 = await noteApiAttempt(startedAt, receiptMs,
-            "404", resp);
-          diagSetApiNextFromEvidence(note404.nextMs, note404.reason);
+          if (ensureTimeout()) return;
+          claimAccounting("404", resp, receiptMs);
           failFetch(E.HTTP_404);
-          diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          diagFinishOnce({ source: source, finishedAt: finishTime(receiptMs),
             httpStatus: resp.status, outcome: "rejected",
             reason: "HTTP 404（备用源未找到公开文件）" });
           return;
         }
         if (!resp.ok || resp.status === 304) {
-          var noteOther = await noteApiAttempt(startedAt, receiptMs,
-            resp.status >= 500 ? "5xx" : "network", resp);
-          diagSetApiNextFromEvidence(noteOther.nextMs, noteOther.reason);
+          if (ensureTimeout()) return;
+          claimAccounting(resp.status >= 500 ? "5xx" : "network", resp,
+            receiptMs);
           failFetch(E.HTTP_ERROR, "HTTP " + resp.status +
             (resp.status === 304 ? "（304 不视为免费成功）" : ""));
-          diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          diagFinishOnce({ source: source, finishedAt: finishTime(receiptMs),
             httpStatus: resp.status, outcome: "rejected",
             reason: "HTTP " + resp.status
               + (resp.status === 304 ? "（304 不视为免费成功）" : "")
-              + "（" + noteOther.reason + "）" });
+              + "（冷却/退避期限见诊断面板）" });
           return;
         }
       } else if (resp.status === 404) {
         failFetch(E.HTTP_404);
-        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+        diagFinishOnce({ source: source, finishedAt: finishTime(receiptMs),
           httpStatus: resp.status, outcome: "rejected",
           reason: "HTTP 404（未找到公开文件）" });
         return;
       } else if (!resp.ok) {
         failFetch(E.HTTP_ERROR, "HTTP " + resp.status);
-        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+        diagFinishOnce({ source: source, finishedAt: finishTime(receiptMs),
           httpStatus: resp.status, outcome: "rejected",
           reason: "HTTP " + resp.status });
         return;
       }
       var text = await resp.text();
+      if (ensureTimeout()) return;
       receiptMs = Date.now();
       var env;
       try {
@@ -798,85 +974,73 @@
         // L4：坏 JSON 不传入任何正文，摘要只记录渠道/状态/结果，不含
         // body 片段（敏感串不会泄漏）。
         if (source === "api") {
-          var noteBad = await noteApiAttempt(startedAt, receiptMs,
-            "bad-data", resp);
-          diagSetApiNextFromEvidence(noteBad.nextMs, noteBad.reason);
+          if (ensureTimeout()) return;
+          claimAccounting("bad-data", resp, receiptMs);
         }
         failFetch(E.BAD_JSON);
-        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+        diagFinishOnce({ source: source, finishedAt: finishTime(receiptMs),
           httpStatus: gotStatus, outcome: "rejected",
           reason: "响应正文不是合法 JSON（未采用任何字段）" });
         return;
       }
       if (mySeq !== state.requestSeq) return;
-      await processEnvelope(env, source);
+      var procResult = await processEnvelope(env, source, reqCtx);
+      // 提交与终结已在 processEnvelope 的同步段（ctx.commit）内认领：
+      // 这里只能使用已认领的结果，不再 ensureTimeout、不再按 state.mode
+      // 重新分类——最终截止门在提交前已读取过，提交后不再读时钟重判。
       if (mySeq !== state.requestSeq) return;
-      if (source === "api") {
-        // 坏数据（processEnvelope 已把 mode 置 error）同样计入冷却；
-        // 成功/remaining=0 也按 120s~reset 安排。
-        var note;
-        if (state.mode === "error") {
-          note = await noteApiAttempt(startedAt, receiptMs,
-            "bad-data", resp);
-        } else {
-          note = await noteApiAttempt(startedAt, receiptMs, "ok", resp);
-        }
-        diagSetApiNextFromEvidence(note.nextMs, note.reason);
+      if (procResult && procResult.dead) {
+        // 已到截止（含定时器回调尚未执行的情况）：ensureTimeout 保证
+        // 唯一超时终结一定发生；若 commit 已自行触发则其 settled 短路。
+        ensureTimeout();
+        return;
       }
-      // L4：结果分类。接受不代表新鲜；重复同样本不续命（年龄高水位由
-      // ageTracker 保证，此处只记录）。
-      var newHash = state.lastGood ? state.lastGood.hash : null;
-      if (state.mode === "error") {
-        var codes = state.errors.map(function (er) { return er.code; });
-        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
-          httpStatus: gotStatus, outcome: "rejected",
-          reason: diagRejectReason(codes), env: env });
-      } else if (newHash !== null && newHash === prevHash) {
-        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
-          httpStatus: gotStatus, outcome: "duplicate",
-          reason: "与上次通过校验的内容相同，年龄不续期", env: env });
-      } else {
-        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
-          httpStatus: gotStatus, outcome: "accepted",
-          reason: "新样本通过校验（是否新鲜以采样年龄为准）", env: env });
+      if (!procResult || !procResult.committed) {
+        // 已终结/失去归属（如 digest 迟到恰好撞上超时）：交由唯一超时
+        // 入口；未终结则什么也不做，直接返回（finally 按归属清理）。
+        ensureTimeout();
+        return;
       }
+      // accepted/duplicate/rejected 已在同步段提交并落诊断；API 记账也
+      // 已在 commit 内认领一次。这里直接返回，不重终结、不补记账。
     } catch (e) {
-      if (mySeq !== state.requestSeq) return;
-      var errReceiptMs = Date.now();
-      if (e && e.name === "AbortError") {
-        if (source === "api") {
-          var noteTO = await noteApiAttempt(startedAt, errReceiptMs,
-            "timeout", null);
-          diagSetApiNextFromEvidence(noteTO.nextMs, noteTO.reason);
-        }
-        failFetch(E.FETCH_TIMEOUT);
-        // L4：正文读取超时（已收到响应头）必须同时保留 HTTP 状态。
-        diagFinish({ source: source, finishedAt: finishTime(errReceiptMs),
-          httpStatus: gotStatus, outcome: "timeout",
-          reason: gotStatus === null
-            ? "请求超时（未收到响应头）"
-            : "已收到 HTTP " + gotStatus + " 响应头，但读取正文超时" });
-      } else {
-        if (source === "api") {
-          var noteNet = await noteApiAttempt(startedAt, errReceiptMs,
-            "network", null);
-          diagSetApiNextFromEvidence(noteNet.nextMs, noteNet.reason);
-        }
-        failFetch(E.FETCH_NETWORK_ERROR);
-        // L4 R1：固定白名单文案。若已收到响应头（如 HTTP 200 后
-        // resp.text() 非 Abort 失败），必须如实保留“已收到响应”的事实；
-        // 未收到响应头时才说未收到。异常 detail 一律不展示。
-        diagFinish({ source: source, finishedAt: finishTime(errReceiptMs),
-          httpStatus: gotStatus, outcome: "network",
-          reason: gotStatus === null
-            ? "网络失败（未收到响应头；异常细节不展示）"
-            : "已收到 HTTP " + gotStatus
-              + " 响应头，但正文读取失败（异常细节不展示）" });
+      // 所有异步续体写共享诊断/状态前都要验证归属权。
+      if (!ownsNow()) return;
+      if (settled || timedOut) return;   // 已终结：不得二次终结或覆盖
+      // Abort（由我方超时 abort 触发）或单调时钟已到截止：统一走唯一超时
+      // 终结分支（它保留已收到的头并只认领一次 timeout 记账）。
+      if ((e && e.name === "AbortError")
+          || performance.now() >= deadlineMono) {
+        onTimeout();
+        return;
       }
+      var errReceiptMs = Date.now();
+      if (source === "api") {
+        // 网络错误记账与终结分离：只认一次、不等待、不覆盖后来请求诊断。
+        // P3：传 respRef 而非 null——正文非 Abort 失败时已收到的响应头
+        // （如 HTTP 200 + remaining=0 + 未来 Reset）必须保留给记账合并；
+        // 未收到响应时 respRef 自然为 null。记账时刻仍用 errReceiptMs，
+        // 不缩短原 120s floor；不改 noteApiAttempt/apiRateLimit 算法。
+        claimAccounting("network", respRef, errReceiptMs);
+      }
+      failFetch(E.FETCH_NETWORK_ERROR);
+      // L4 R1：固定白名单文案。若已收到响应头（如 HTTP 200 后
+      // resp.text() 非 Abort 失败），必须如实保留“已收到响应”的事实；
+      // 未收到响应头时才说未收到。异常 detail 一律不展示。
+      diagFinishOnce({ source: source, finishedAt: finishTime(errReceiptMs),
+        httpStatus: gotStatus, outcome: "network",
+        headersReceivedAt: headersReceivedAt,
+        reason: gotStatus === null
+          ? "网络失败（未收到响应头；异常细节不展示）"
+          : "已收到 HTTP " + gotStatus
+            + " 响应头，但正文读取失败（异常细节不展示）" });
     } finally {
       clearTimeout(timer);
-      state.inflight = false;
-      diagClear();
+      // 只有仍是当前请求时才释放在途诊断；旧请求尾部不得清掉 B 的在途。
+      if (ownsNow()) {
+        state.inflight = false;
+        diagClear();
+      }
     }
   }
 
