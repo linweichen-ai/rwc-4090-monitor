@@ -7,7 +7,7 @@
 <!-- L2：所有静态资源 URL 与交付版本绑定，发版即换 URL，避免旧 config
      与新 app 混合（中间缓存不会把新版本页面和旧脚本拼装在一起）。
      RWC_ASSET_VERSION 必须与 site/config.js 中的值一致。 -->
-<link rel="stylesheet" href="styles.css?v=20261025-status16">
+<link rel="stylesheet" href="styles.css?v=20261025-status17">
 </head>
 <body>
 <header class="site-header">
@@ -62,6 +62,24 @@
     <div id="tasks-container"></div>
   </section>
 
+  <!-- L4 更新诊断（默认折叠，仅定位证据，不改变取数） -->
+  <details class="diag-panel" id="diag-panel">
+    <summary>更新诊断（最近一次请求；仅定位用，默认折叠，不改变取数）</summary>
+    <div class="diag-body">
+      <p><span class="diag-label">当前在途</span><span id="diag-inflight">空闲</span></p>
+      <p><span class="diag-label">最近完成</span><span id="diag-finished">—</span></p>
+      <p><span class="diag-label">渠道</span><span id="diag-channel">—</span></p>
+      <p><span class="diag-label">HTTP 状态</span><span id="diag-http">—</span></p>
+      <p><span class="diag-label">结果</span><span id="diag-outcome">—</span></p>
+      <p><span class="diag-label">响应声明</span><span id="diag-declared">—</span></p>
+      <p><span class="diag-label">API 备用源</span><span id="diag-api-next">—</span></p>
+      <p class="panel-note">只记录本标签实际请求的观察：已完成请求最多保留一条、
+        外加当前在途状态；不改变轮询、备用选择、限流、超时与校验，也不增加请求。
+        “已接受”不等于样本仍新鲜；被拒响应的时刻/序号仅为“响应声明”，不是已采用
+        读数；最近有效获取仍以页面上“最近有效获取”为准。</p>
+    </div>
+  </details>
+
   <!-- 阶段成果 / 下一步 -->
   <section class="stage-panel">
     <h2>阶段成果与下一步</h2>
@@ -105,10 +123,10 @@
   </footer>
 </main>
 
-<script src="config.js?v=20261025-status16"></script>
-<script src="js/canonical.js?v=20261025-status16"></script>
-<script src="js/validate.js?v=20261025-status16"></script>
-<script src="js/demo.js?v=20261025-status16"></script>
-<script src="js/app.js?v=20261025-status16"></script>
+<script src="config.js?v=20261025-status17"></script>
+<script src="js/canonical.js?v=20261025-status17"></script>
+<script src="js/validate.js?v=20261025-status17"></script>
+<script src="js/demo.js?v=20261025-status17"></script>
+<script src="js/app.js?v=20261025-status17"></script>
 </body>
 </html>

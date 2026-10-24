@@ -213,3 +213,36 @@ body {
   background: #8a8f99;
   color: #fff;
 }
+
+/* L4 更新诊断面板（默认折叠，仅定位证据） */
+.diag-panel {
+  margin: 16px 0;
+  padding: 12px 16px;
+  border: 1px solid #d4d8de;
+  border-radius: 10px;
+  background: #f7f8fa;
+  font-size: 13px;
+}
+.diag-panel > summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: #2f3640;
+}
+.diag-body {
+  margin-top: 10px;
+}
+.diag-body p {
+  margin: 4px 0;
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.diag-label {
+  flex: 0 0 92px;
+  color: #6b7280;
+}
+.diag-body .panel-note {
+  display: block;
+  margin-top: 8px;
+  color: #6b7280;
+}

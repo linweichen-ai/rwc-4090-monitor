@@ -37,7 +37,15 @@
     demo: false,
     demoSource: null,
     demoState: "normal",
-    urlConfigured: false
+    urlConfigured: false,
+    // L4：可见更新诊断（只记录实际观察，不改变任何取数/校验逻辑）。
+    // 最多只保留一个完成记录 + 当前在途状态 + 一个 API 冷却快照，
+    // 无历史列表；渲染只读这些字段，不触发任何 fetch/存储。
+    diag: {
+      inflight: null,   // {source, startedAt}
+      last: null,       // 最近一次已完成请求的记录
+      apiNext: null     // {atMs, reason}（请求路径上缓存的快照）
+    }
   };
 
   // L3：GitHub Contents API 备用源的冷却/限流状态（无 token 匿名访问）。
@@ -325,10 +333,16 @@
   }
 
   // 解析 x-ratelimit-reset / x-ratelimit-remaining / retry-after，
-  // 返回“建议的下一次可请求时刻（ms）”；没有可用头返回 0。receiptMs 为
-  // 响应实际收到时刻（相对 Retry-After 从此时起算），status 为 HTTP 状态。
-  function apiRateLimitNext(headers, receiptMs, status) {
-    var next = 0;
+  // 返回两类候选（L4 R1：原因归属必须可由证据支持）：
+  //  applied  —— 对当前状态适用、可参与本轮最终期限竞争的头 {ms,label}；
+  //  observed —— 观察到但对当前分支不适用的头（如 200 正余额时的 Reset），
+  //              仅可在面板“另观察到”中说明，不参与最终期限决定。
+  // 已过期或短于最终期限的头由 noteApiAttemptLocked 进一步区分，绝不标成
+  // 最终采用原因。receiptMs 为响应实际收到时刻（相对 Retry-After 从此时
+  // 起算），status 为 HTTP 状态。期限数值计算与冻结版逐路径一致。
+  function apiRateLimit(headers, receiptMs, status) {
+    var applied = [];
+    var observed = [];
     function h(name) {
       try {
         return headers && headers.get ? headers.get(name) : null;
@@ -340,33 +354,69 @@
       var r = String(retry).trim();
       if (/^\d+$/.test(r)) {
         var relMs = receiptMs + Number(r) * 1000;
-        if (finiteNonNegMs(relMs)) next = Math.max(next, relMs);
+        if (finiteNonNegMs(relMs)) {
+          applied.push({ ms: relMs, label: "Retry-After（相对秒数）" });
+        }
       } else {
         var t = Date.parse(r);
-        if (!isNaN(t) && isFinite(t)) next = Math.max(next, t);
+        if (!isFinite(t) || isNaN(t)) {
+          // 非法日期：不进任何列表
+        } else {
+          applied.push({ ms: t, label: "Retry-After（HTTP 日期）" });
+        }
       }
     }
     var reset = h("x-ratelimit-reset");
-    var remaining = h("x-ratelimit-remaining");
+    // L4 R2：remaining 必须区分“已证实正余额”与“未证实”。头部读取本身
+    // 抛错、缺失、空值、非法内容都不能证明正余额，只能统一说明“未证实
+    // remaining=0”，绝不能把未知说成有余量。仅诊断措辞，适用性与数值
+    // 逻辑不变（仍只有确切的 remaining=0 才采用 Reset）。
+    var remaining = null;
+    var remainingReadError = false;
+    try {
+      remaining = headers && headers.get
+        ? headers.get("x-ratelimit-remaining")
+        : null;
+    } catch (e) {
+      remaining = null;
+      remainingReadError = true;
+    }
+    var remainingIsNonNegInt = remaining !== null && remaining !== undefined
+      && /^\s*\d+\s*$/.test(String(remaining));
+    var remainingNum = remainingIsNonNegInt ? Number(remaining) : null;
     var resetMs = 0;
     if (reset && /^\s*\d+\s*$/.test(String(reset))) {
       var parsed = Number(reset) * 1000 + 1000;
       if (finiteNonNegMs(parsed)) resetMs = parsed;
     }
     // 403/429：使用所有有效 Reset（即使 remaining 是正数）；
-    // 200：只有 remaining=0 才等到 Reset，避免每次成功都等到整小时。
+    // 200：只有 remaining=0 才等到 Reset，避免每次成功都等到整小时；
+    // 其余状态下的 Reset 对本分支不适用，仅可“观察到”。
     if (resetMs) {
       if (status === 403 || status === 429) {
-        next = Math.max(next, resetMs);
+        applied.push({ ms: resetMs, label: "x-ratelimit-reset（403/429）" });
       } else if (status === 200) {
-        if (remaining !== null && remaining !== undefined
-            && /^\s*\d+\s*$/.test(String(remaining))
-            && Number(remaining) === 0) {
-          next = Math.max(next, resetMs);
+        if (remainingIsNonNegInt && remainingNum === 0) {
+          applied.push({ ms: resetMs, label: "x-ratelimit-reset（remaining=0）" });
+        } else if (remainingIsNonNegInt && remainingNum > 0) {
+          // 已证实正余额（确切读到了非负整数且 > 0）
+          observed.push("x-ratelimit-reset（200 且 x-ratelimit-remaining="
+            + remainingNum + " 为正余额，本分支不适用）");
+        } else {
+          // 缺失/非法/读取抛错：只说明证据不足，不猜正余额
+          var why = remainingReadError
+            ? "remaining 头读取失败"
+            : (remaining === null || remaining === undefined
+                ? "未提供 remaining"
+                : "remaining 值非法");
+          observed.push("x-ratelimit-reset（200 但" + why
+            + "，未证实 remaining=0，本分支不采用此 Reset）");
         }
+      } else {
+        observed.push("x-ratelimit-reset（HTTP " + status + " 本分支不适用）");
       }
     }
-    return next;
+    return { applied: applied, observed: observed };
   }
 
   // 无有效限流头的有限指数退避（120s→240s→480s…上限 600s）。
@@ -382,34 +432,93 @@
   // startedAt 为请求开始时刻（120s 基础预约从那时起算）；receiptMs 为
   // 响应收到时刻（相对 Retry-After 与无头退避从此时起算）；最终取更晚
   // 期限，成功/错误都不缩短。
+  //
+  // L4 R1：返回的 reason 只描述“由证据支持的最终期限原因”。先按冻结逻辑
+  // 算出本轮局部目标 localTarget，再由 apiCooldownCommit 合并内存/共享期限：
+  //  - 若最终期限被提交时已存在的更晚期限抬高，无法证明写入方（同毫秒、
+  //    时钟变化、旧值合并都可能），原因只能标“共享或既有期限，未知”；
+  //  - 已过期、短于最终期限或不适用于当前分支的头，只能列入“另观察到”，
+  //    不得标为最终采用原因。
   function noteApiAttemptLocked(startedAt, receiptMs, kind, resp) {
     api.attempts += 1;
     var baseReservation = startedAt + API_COOLDOWN_MIN_MS;
+    var receiptFloor = receiptMs + API_COOLDOWN_MIN_MS;
     var headers = resp && resp.headers;
     var status = resp && resp.status;
-    var limitNext = headers ? apiRateLimitNext(headers, receiptMs, status) : 0;
-    var target;
-    if (kind === "rate-limited" || kind === "5xx"
-        || kind === "network" || kind === "timeout") {
-      if (limitNext > receiptMs) {
+    var limit = headers
+      ? apiRateLimit(headers, receiptMs, status)
+      : { applied: [], observed: [] };
+    var errorKind = kind === "rate-limited" || kind === "5xx"
+        || kind === "network" || kind === "timeout";
+    var localTarget;
+    var comps = [];    // 本轮真正参与最终期限竞争的成分 {ms,label}
+    var observed = limit.observed.slice();
+    if (errorKind) {
+      var eff = limit.applied.filter(function (c) { return c.ms > receiptMs; });
+      if (eff.length) {
         api.backoffMs = 0;
-        target = Math.max(baseReservation, limitNext);
+        var headMs = Math.max.apply(null, eff.map(function (c) { return c.ms; }));
+        localTarget = Math.max(baseReservation, headMs);
+        comps.push({ ms: baseReservation, label: "基础 120 秒冷却（自请求开始）" });
+        eff.forEach(function (c) { comps.push({ ms: c.ms, label: c.label }); });
       } else {
-        // 没有有效头：有限退避，且不短于基础预约
-        target = Math.max(baseReservation, apiBackoffTarget(receiptMs));
+        // 没有晚于收到时刻的有效头：有限退避，且不短于基础预约
+        var backoffTarget = apiBackoffTarget(receiptMs);
+        localTarget = Math.max(baseReservation, backoffTarget);
+        comps.push({ ms: baseReservation, label: "基础 120 秒冷却（自请求开始）" });
+        comps.push({ ms: backoffTarget,
+          label: "无有效限流头，有限指数退避（下一次不早于 "
+            + Math.round((backoffTarget - receiptMs) / 1000) + " 秒）" });
       }
     } else {
       // ok / bad-data / 404：不短于基础预约。限流是响应约束，不能随
       // JSON/schema/hash/序号验证失败丢失：200 且 remaining=0（含坏 JSON、
-      // 校验失败等 body 失败路径）同样等到 reset；普通 200 正余额时
-      // limitNext 已为 0，不会因此等到整小时。
+      // 校验失败等 body 失败路径）同样等到 reset；普通 200 正余额、或 404
+      // 时不采用限流头，不会因此等到整小时。
       api.backoffMs = 0;
-      target = Math.max(baseReservation,
-        (limitNext > receiptMs && (kind === "ok" || kind === "bad-data"))
-          ? limitNext : 0,
-        receiptMs + API_COOLDOWN_MIN_MS);
+      var take = (kind === "ok" || kind === "bad-data")
+        ? limit.applied.filter(function (c) { return c.ms > receiptMs; })
+        : [];
+      var headMs2 = take.length
+        ? Math.max.apply(null, take.map(function (c) { return c.ms; }))
+        : 0;
+      localTarget = Math.max(baseReservation, headMs2, receiptFloor);
+      comps.push({ ms: receiptFloor, label: "基础 120 秒冷却（自响应收到）" });
+      if (baseReservation > receiptFloor) {
+        comps.push({ ms: baseReservation, label: "基础 120 秒冷却（自请求开始）" });
+      }
+      take.forEach(function (c) { comps.push({ ms: c.ms, label: c.label }); });
     }
-    return apiCooldownCommit(receiptMs, target);
+    // 适用但未决定最终期限的头：已过期或早于本轮目标，只能“另观察到”。
+    limit.applied.forEach(function (c) {
+      if (c.ms <= receiptMs) {
+        observed.push(c.label + "（已过期，未采用）");
+      } else if (c.ms < localTarget) {
+        observed.push(c.label + "（早于最终期限，未作为采用原因）");
+      }
+    });
+    var finalMs = apiCooldownCommit(receiptMs, localTarget);
+    var finalReason;
+    if (finalMs > localTarget && finalMs > receiptFloor) {
+      // 合并到了提交时已存在的更晚期限（内存或共享存储）。不从 updatedAt
+      // 等时间戳猜测写入方——同毫秒、时钟变化、旧值合并都无法证明来源。
+      finalReason = "最终期限来自共享或既有冷却记录（提交时合并到更晚值，"
+        + "来源与原因未知）；本轮响应/退避决定的期限更短";
+    } else if (finalMs > localTarget) {
+      // 仅被“响应收到 + 120s”底线抬高：本轮响应头不是最终原因。
+      finalReason = "基础 120 秒冷却（自响应收到；本轮响应头未更晚，"
+        + "未作为最终原因）";
+    } else {
+      var winnerLabels = comps
+        .filter(function (c) { return c.ms === localTarget; })
+        .map(function (c) { return c.label; })
+        .filter(function (w, i, arr) { return arr.indexOf(w) === i; });
+      finalReason = winnerLabels.join("、") || "基础 120 秒冷却";
+    }
+    if (observed.length) {
+      finalReason += "；另观察到：" + observed.join("、");
+    }
+    return { nextMs: finalMs, reason: finalReason };
   }
 
   function noteApiAttempt(startedAt, receiptMs, kind, resp) {
@@ -423,8 +532,32 @@
   // 标签抢先预约），本轮应回退为 raw。
   function reserveApiAttempt(now) {
     function check() {
-      if (now < apiCooldownRead(now)) return false;
-      apiCooldownCommit(now, now + API_COOLDOWN_MIN_MS);
+      // L4 R1：读取与提交都是本路径本来就会执行的调用；诊断只顺带记录
+      // 其返回值，不新增任何存储/锁调用。
+      var next = apiCooldownRead(now);
+      if (now < next) {
+        diagSetApiNextFromEvidence(next,
+          "预约检查未通过（冷却未到期；可能被其他标签抢先预约，原因未知）");
+        return false;
+      }
+      var baseTarget = now + API_COOLDOWN_MIN_MS;
+      var committed = apiCooldownCommit(now, baseTarget);
+      // L4 R2：措辞必须有证据支持。同一路径在无 Web Locks/锁拒绝降级时
+      // 也会执行，不能一概称“原子”；且 commit 可能合并到 check 读取之后
+      // 由其他标签写入的更长期限（无锁时窗口确实存在），此时不能把最终
+      // 期限归为基础 120 秒，只能说明共享或既有期限、来源原因未知。
+      if (committed > baseTarget) {
+        diagSetApiNextFromEvidence(committed,
+          "请求开始前已尝试预约冷却，但提交时合并到共享或既有更晚期限"
+          + "（来源与原因未知；无 Web Locks 时该窗口确实存在）");
+      } else if (api.locksOk === true) {
+        diagSetApiNextFromEvidence(committed,
+          "已在同源 Web Lock 持有期间于请求开始前预约基础 120 秒冷却");
+      } else {
+        diagSetApiNextFromEvidence(committed,
+          "已在请求开始前于本标签预约基础 120 秒冷却（当前无可用 Web "
+          + "Locks，跨标签“检查+预约”不保证原子，以能力提示为准）");
+      }
       return true;
     }
     // withApiLock 自身会在锁拒绝/抛错时标记降级并无锁执行 check
@@ -445,11 +578,109 @@
     var age = currentSampleAgeMs(now);
     var eligible = state.lastGood === null ||
       (age !== null && age >= cfg.apiFallbackAgeMs);
-    if (!eligible) return "raw";
-    if (now < apiCooldownRead(now)) return "raw";
+    if (!eligible) {
+      // L4 R1：样本仍新鲜时冻结逻辑本来就不读取冷却记录；诊断不得为此
+      // 新增任何存储探测/读取，期限与原因如实标“本轮未检查、未知”。
+      diagSetApiNextNotChecked("本轮未检查备用源冷却（样本仍新鲜，按规则"
+        + "走 raw；期限未知，未做额外探测）");
+      return "raw";
+    }
+    var next = apiCooldownRead(now);   // 自然路径上本来就会执行的读取
+    if (now < next) {
+      diagSetApiNextFromEvidence(next,
+        "冷却未到期（现有冷却记录，具体来源/原因未知）");
+      return "raw";
+    }
+    diagSetApiNextFromEvidence(0,
+      "冷却已到期，本轮尝试备用源（后续预约结果为准）");
     return "api";
   }
   window.RWCChooseSource = chooseSource;
+
+  // ============================ L4 更新诊断记录 ============================
+  // 只在真实请求/冷却路径记录实际观察值；不改变轮询、备用选择、限流、
+  // 预约锁、超时、序号/哈希校验、年龄计算与任何状态。字段只做无状态
+  // 格式检查，缺失/非法一律“不可用”，绝不沿用上一次摘要。
+  function diagSafeInt(v) {
+    if (typeof v === "number" && isFinite(v) && Number.isInteger(v)
+        && v >= 0 && v <= 9007199254740991) return v;
+    return null;
+  }
+  function diagSafeIso(v) {
+    if (typeof v !== "string") return null;
+    var n = V.parseIsoZ(v);
+    if (typeof n === "number" && isFinite(n)) return v;
+    return null;
+  }
+  function diagChannelName(s) {
+    if (s === "api") return "GitHub Contents API 备用源";
+    if (s === "raw") return "raw 轮询";
+    return "不可用";
+  }
+  function diagStart(source) {
+    state.diag.inflight = {
+      source: source === "api" ? "api" : "raw",
+      startedAt: Date.now()
+    };
+  }
+  function diagClear() {
+    state.diag.inflight = null;
+  }
+  // L4 R1：API 冷却快照只允许记录“自然路径上已经发生”的读取/预约/提交
+  // 返回值。observed=true 表示该期限来自本轮真实发生的控制路径调用；
+  // observed=false 表示本轮冻结逻辑根本不会检查冷却，面板只能说未知。
+  // 这些函数本身绝不触碰 localStorage / navigator.locks。
+  function diagSetApiNextFromEvidence(atMs, reason) {
+    state.diag.apiNext = {
+      observed: true,
+      atMs: typeof atMs === "number" && isFinite(atMs) ? atMs : 0,
+      reason: reason || "冷却安排（原因未知）"
+    };
+  }
+  function diagSetApiNextNotChecked(reason) {
+    state.diag.apiNext = { observed: false, atMs: 0, reason: reason };
+  }
+  // rec.env 只在正文成功解析为 JSON 对象时传入：坏 JSON 时不传入任何
+  // 正文内容，因此敏感串、非法字段不可能进入摘要。
+  function diagFinish(rec) {
+    var out = {
+      source: rec.source === "api" || rec.source === "raw" ? rec.source : null,
+      finishedAt: typeof rec.finishedAt === "number" && isFinite(rec.finishedAt)
+        ? rec.finishedAt : null,
+      httpStatus: diagSafeInt(rec.httpStatus),
+      outcome: ["accepted", "duplicate", "rejected", "timeout",
+        "network"].indexOf(rec.outcome) >= 0 ? rec.outcome : null,
+      reason: typeof rec.reason === "string" ? rec.reason : "",
+      declaredSampledAt: null,
+      declaredPublishedAt: null,
+      declaredSampleSeq: null,
+      declaredPublicationSeq: null,
+      bodyAvailable: false
+    };
+    var env = rec.env;
+    if (env && typeof env === "object") {
+      out.bodyAvailable = true;
+      var s = env.sample && typeof env.sample === "object" ? env.sample : null;
+      if (s) {
+        out.declaredSampledAt = diagSafeIso(s.sampled_at);
+        out.declaredSampleSeq = diagSafeInt(s.sample_seq);
+      }
+      out.declaredPublishedAt = diagSafeIso(env.published_at);
+      out.declaredPublicationSeq = diagSafeInt(env.publication_seq);
+    }
+    state.diag.last = out;
+    return out;
+  }
+  // 被拒响应的白名单原因：直接取自校验错误码的中文映射（固定集合），
+  // 不输出异常 detail。
+  function diagRejectReason(codes) {
+    var parts = [];
+    (codes || []).forEach(function (code) {
+      var t = V.ERROR_TEXT_ZH && V.ERROR_TEXT_ZH[code];
+      if (parts.indexOf(t || code) === -1) parts.push(t || code);
+    });
+    return parts.join("；") || "未通过白名单校验";
+  }
 
   async function fetchOnce() {
     if (state.inflight) return;            // 单请求在途
@@ -462,8 +693,18 @@
     if (source === "api") {
       var reserved = await reserveApiAttempt(startedAt);
       if (mySeq !== state.requestSeq) { state.inflight = false; return; }
-      if (!reserved) source = "raw";
+      if (!reserved) {
+        source = "raw";
+        // L4 R1：预约失败的期限已由 reserveApiAttempt 内自然路径
+        // （apiCooldownRead）记录；此处不再做任何额外存储读取。
+      }
+      // 预约成功的期限同样由 reserveApiAttempt 内的自然提交记录。
     }
+    // source==="raw" 时不再有任何诊断专用存储读取：chooseSource 已在
+    // 自然路径上记录（不合格时明确“未检查、未知”，冷却未到期时记录
+    // 实际读到的期限）。
+    // L4：在途记录（渠道此时已最终确定，不参与任何判定）
+    diagStart(source);
     var requestUrl, acceptType;
     if (source === "api") {
       requestUrl = buildApiUrl(cfg.contentsApiUrl, startedAt);
@@ -477,9 +718,14 @@
     var controller = new AbortController();
     var timer = setTimeout(function () { controller.abort(); },
                            cfg.fetchTimeoutMs);
+    var prevHash = state.lastGood ? state.lastGood.hash : null;
+    var gotStatus = null;   // L4：已收到响应头时的 HTTP 状态（用于正文超时）
     function failFetch(code, detail) {
       state.errors = [{ code: code, detail: detail || "" }];
       state.mode = "error";   // 保留旧读数（不修改 lastGood），撤销有效结论
+    }
+    function finishTime(ms) {
+      return typeof ms === "number" && isFinite(ms) ? ms : Date.now();
     }
     try {
       var resp = await fetch(requestUrl, {
@@ -491,32 +737,56 @@
       });
       if (mySeq !== state.requestSeq) return;  // 旧响应，丢弃
       var receiptMs = Date.now();
+      gotStatus = diagSafeInt(resp.status);
       if (source === "api") {
         // 403/429：遵从限流头/退避；5xx/304 等也计入尝试，绝不假设 304
         // 不占额度。
         if (resp.status === 403 || resp.status === 429) {
-          await noteApiAttempt(startedAt, receiptMs, "rate-limited", resp);
+          var noteRL = await noteApiAttempt(startedAt, receiptMs,
+            "rate-limited", resp);
+          diagSetApiNextFromEvidence(noteRL.nextMs, noteRL.reason);
           failFetch(E.HTTP_ERROR, "HTTP " + resp.status +
             "（Contents API 限流，已按 Reset/Retry-After 冷却）");
+          diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+            httpStatus: resp.status, outcome: "rejected",
+            reason: "HTTP " + resp.status + "（Contents API 限流；"
+              + noteRL.reason + "）" });
           return;
         }
         if (resp.status === 404) {
-          await noteApiAttempt(startedAt, receiptMs, "404", resp);
+          var note404 = await noteApiAttempt(startedAt, receiptMs,
+            "404", resp);
+          diagSetApiNextFromEvidence(note404.nextMs, note404.reason);
           failFetch(E.HTTP_404);
+          diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+            httpStatus: resp.status, outcome: "rejected",
+            reason: "HTTP 404（备用源未找到公开文件）" });
           return;
         }
         if (!resp.ok || resp.status === 304) {
-          await noteApiAttempt(startedAt, receiptMs,
+          var noteOther = await noteApiAttempt(startedAt, receiptMs,
             resp.status >= 500 ? "5xx" : "network", resp);
+          diagSetApiNextFromEvidence(noteOther.nextMs, noteOther.reason);
           failFetch(E.HTTP_ERROR, "HTTP " + resp.status +
             (resp.status === 304 ? "（304 不视为免费成功）" : ""));
+          diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+            httpStatus: resp.status, outcome: "rejected",
+            reason: "HTTP " + resp.status
+              + (resp.status === 304 ? "（304 不视为免费成功）" : "")
+              + "（" + noteOther.reason + "）" });
           return;
         }
       } else if (resp.status === 404) {
         failFetch(E.HTTP_404);
+        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          httpStatus: resp.status, outcome: "rejected",
+          reason: "HTTP 404（未找到公开文件）" });
         return;
       } else if (!resp.ok) {
         failFetch(E.HTTP_ERROR, "HTTP " + resp.status);
+        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          httpStatus: resp.status, outcome: "rejected",
+          reason: "HTTP " + resp.status });
         return;
       }
       var text = await resp.text();
@@ -525,10 +795,17 @@
       try {
         env = JSON.parse(text);
       } catch (e) {
+        // L4：坏 JSON 不传入任何正文，摘要只记录渠道/状态/结果，不含
+        // body 片段（敏感串不会泄漏）。
         if (source === "api") {
-          await noteApiAttempt(startedAt, receiptMs, "bad-data", resp);
+          var noteBad = await noteApiAttempt(startedAt, receiptMs,
+            "bad-data", resp);
+          diagSetApiNextFromEvidence(noteBad.nextMs, noteBad.reason);
         }
         failFetch(E.BAD_JSON);
+        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          httpStatus: gotStatus, outcome: "rejected",
+          reason: "响应正文不是合法 JSON（未采用任何字段）" });
         return;
       }
       if (mySeq !== state.requestSeq) return;
@@ -537,29 +814,69 @@
       if (source === "api") {
         // 坏数据（processEnvelope 已把 mode 置 error）同样计入冷却；
         // 成功/remaining=0 也按 120s~reset 安排。
+        var note;
         if (state.mode === "error") {
-          await noteApiAttempt(startedAt, receiptMs, "bad-data", resp);
+          note = await noteApiAttempt(startedAt, receiptMs,
+            "bad-data", resp);
         } else {
-          await noteApiAttempt(startedAt, receiptMs, "ok", resp);
+          note = await noteApiAttempt(startedAt, receiptMs, "ok", resp);
         }
+        diagSetApiNextFromEvidence(note.nextMs, note.reason);
+      }
+      // L4：结果分类。接受不代表新鲜；重复同样本不续命（年龄高水位由
+      // ageTracker 保证，此处只记录）。
+      var newHash = state.lastGood ? state.lastGood.hash : null;
+      if (state.mode === "error") {
+        var codes = state.errors.map(function (er) { return er.code; });
+        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          httpStatus: gotStatus, outcome: "rejected",
+          reason: diagRejectReason(codes), env: env });
+      } else if (newHash !== null && newHash === prevHash) {
+        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          httpStatus: gotStatus, outcome: "duplicate",
+          reason: "与上次通过校验的内容相同，年龄不续期", env: env });
+      } else {
+        diagFinish({ source: source, finishedAt: finishTime(receiptMs),
+          httpStatus: gotStatus, outcome: "accepted",
+          reason: "新样本通过校验（是否新鲜以采样年龄为准）", env: env });
       }
     } catch (e) {
       if (mySeq !== state.requestSeq) return;
       var errReceiptMs = Date.now();
       if (e && e.name === "AbortError") {
         if (source === "api") {
-          await noteApiAttempt(startedAt, errReceiptMs, "timeout", null);
+          var noteTO = await noteApiAttempt(startedAt, errReceiptMs,
+            "timeout", null);
+          diagSetApiNextFromEvidence(noteTO.nextMs, noteTO.reason);
         }
         failFetch(E.FETCH_TIMEOUT);
+        // L4：正文读取超时（已收到响应头）必须同时保留 HTTP 状态。
+        diagFinish({ source: source, finishedAt: finishTime(errReceiptMs),
+          httpStatus: gotStatus, outcome: "timeout",
+          reason: gotStatus === null
+            ? "请求超时（未收到响应头）"
+            : "已收到 HTTP " + gotStatus + " 响应头，但读取正文超时" });
       } else {
         if (source === "api") {
-          await noteApiAttempt(startedAt, errReceiptMs, "network", null);
+          var noteNet = await noteApiAttempt(startedAt, errReceiptMs,
+            "network", null);
+          diagSetApiNextFromEvidence(noteNet.nextMs, noteNet.reason);
         }
         failFetch(E.FETCH_NETWORK_ERROR);
+        // L4 R1：固定白名单文案。若已收到响应头（如 HTTP 200 后
+        // resp.text() 非 Abort 失败），必须如实保留“已收到响应”的事实；
+        // 未收到响应头时才说未收到。异常 detail 一律不展示。
+        diagFinish({ source: source, finishedAt: finishTime(errReceiptMs),
+          httpStatus: gotStatus, outcome: "network",
+          reason: gotStatus === null
+            ? "网络失败（未收到响应头；异常细节不展示）"
+            : "已收到 HTTP " + gotStatus
+              + " 响应头，但正文读取失败（异常细节不展示）" });
       }
     } finally {
       clearTimeout(timer);
       state.inflight = false;
+      diagClear();
     }
   }
 
@@ -925,6 +1242,113 @@
         " ｜ 采样序号：" + g.env.sample.sample_seq +
         " ｜ 发布序号：" + g.env.publication_seq
       : "";
+
+    // L4：更新诊断面板（纯渲染，只读 state.diag，不调冷却/存储/fetch）
+    renderDiag(nowWall);
+  }
+
+  // ------------------------------------------------------ L4 诊断面板
+
+  // 纯渲染：只写 textContent，不触碰 <details> 的 open 状态，不调用任何
+  // 冷却、存储、取数或校验函数。缺失/非法字段一律“不可用”。
+  function renderDiag(nowWall) {
+    var elInf = document.getElementById("diag-inflight");
+    if (!elInf) return;  // 无面板节点的旧 DOM / 测试环境不渲染
+    var d = state.diag;
+
+    if (d.inflight) {
+      var secs = Math.max(0, Math.round((nowWall - d.inflight.startedAt) / 1000));
+      elInf.textContent = diagChannelName(d.inflight.source)
+        + " 请求中（已约 " + secs + " 秒）";
+    } else {
+      elInf.textContent = "空闲";
+    }
+
+    var elFin = document.getElementById("diag-finished");
+    var elCh = document.getElementById("diag-channel");
+    var elHttp = document.getElementById("diag-http");
+    var elOut = document.getElementById("diag-outcome");
+    var elDec = document.getElementById("diag-declared");
+    var elApi = document.getElementById("diag-api-next");
+    var last = d.last;
+
+    function unavailable(v) {
+      return (v === null || v === undefined || v === "") ? "不可用" : v;
+    }
+    function intText(v) {
+      return v === null ? "不可用" : String(v);
+    }
+
+    if (!last) {
+      elFin.textContent = "—";
+      elCh.textContent = "—";
+      elHttp.textContent = "—";
+      elOut.textContent = "—";
+      elDec.textContent = "—";
+    } else {
+      elFin.textContent = unavailable(last.finishedAt === null
+        ? null : fmtLocal(last.finishedAt));
+      elCh.textContent = unavailable(diagChannelName(last.source));
+      elHttp.textContent = last.httpStatus === null
+        ? "未收到 HTTP 状态" : String(last.httpStatus);
+      var outcomeText;
+      switch (last.outcome) {
+        case "accepted":
+          outcomeText = "已接受（新样本；不代表仍新鲜）";
+          break;
+        case "duplicate":
+          outcomeText = "重复（与上次通过校验的内容相同，未续期）";
+          break;
+        case "rejected":
+          outcomeText = "未采用：" + (last.reason || "白名单校验未通过");
+          break;
+        case "timeout":
+          outcomeText = "超时：" + (last.reason || "请求超时");
+          break;
+        case "network":
+          outcomeText = "网络失败：" + (last.reason || "未取得响应");
+          break;
+        default:
+          outcomeText = "不可用";
+      }
+      elOut.textContent = outcomeText;
+
+      var prefix = last.outcome === "accepted" || last.outcome === "duplicate"
+        ? "已采用读数（响应声明）："
+        : "仅响应声明（未采用，不代表已采用读数）：";
+      var lines = [
+        "采样时刻 " + (last.declaredSampledAt || "不可用"),
+        "候选发布时间 " + (last.declaredPublishedAt || "不可用"),
+        "采样序号 " + intText(last.declaredSampleSeq),
+        "发布序号 " + intText(last.declaredPublicationSeq)
+      ];
+      if (!last.bodyAvailable) {
+        elDec.textContent = "响应正文未解析（无声明字段，不可用）";
+      } else {
+        elDec.textContent = prefix + lines.join(" ｜ ");
+      }
+    }
+
+    if (!cfg.contentsApiUrl) {
+      elApi.textContent = "未启用 Contents API 备用源（默认关闭）";
+    } else if (d.apiNext && d.apiNext.observed
+               && d.apiNext.atMs > nowWall) {
+      // 仅展示自然路径（chooseSource/reserve/noteApiAttempt）实际读到或
+      // 提交的期限；未被证据支持的期限一律不显示倒计时。
+      var wait = Math.max(0, Math.round((d.apiNext.atMs - nowWall) / 1000));
+      elApi.textContent = "最早可尝试约 " + fmtLocal(d.apiNext.atMs)
+        + "（约 " + wait + " 秒后）；原因："
+        + (d.apiNext.reason || "未知")
+        + "。实际仍受采样年龄与并发预约条件限制。";
+    } else if (d.apiNext && !d.apiNext.observed) {
+      // 本轮冻结逻辑本就不会检查冷却（如样本仍新鲜）：如实说明，不补探测。
+      elApi.textContent = d.apiNext.reason
+        + "；实际仍受采样年龄与并发预约条件限制。";
+    } else if (d.apiNext && d.apiNext.observed) {
+      elApi.textContent = "当前无冷却限制（仍需满足采样年龄≥120 秒等条件）";
+    } else {
+      elApi.textContent = "尚未完成本轮检查（期限未知，未做额外探测）";
+    }
   }
 
   // ------------------------------------------------------ 阶段面板/论文

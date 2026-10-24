@@ -2,6 +2,8 @@
 
 **[阅读当前V6 Markdown（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/manuscript.md)** · [阅读已验收V5 PDF（7页，私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_preliminary.pdf) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
 
+2026-10-25 当前阶段（status17）：监控L4 R2原包身份、CRC与77项清单已核验，独立26项诊断和50项页面测试全部通过。本次发布采用豆包的更新诊断面板，只显示请求来源、时间、HTTP状态、响应声明及冷却原因，保留已有取数与校验规则、部署配置和后端进程。页面测试包含三次离线合成fixture调用，不是服务器或真实GPU实验。诊断功能通过不等于缓存或持续刷新问题已解决。V6正文已同步私有GitHub；V6 PDF仍在排版验收，已验收PDF继续为7页V5。研究45秒检查和真实20图均未执行。
+
 2026-10-25 当前阶段（status16）：V6 R1原件与完整差异已核验，双人完整审查通过，已原样采用为当前Markdown写作稿并同步私有GitHub；本轮只澄清写作边界与未来验证对照，没有新增科学实验。已验收PDF仍为7页V5，尚不包含本轮修订；V6 PDF任务已于00:59交原豆包会话，尚未交付。
 
 00:47的单次只读核查确认原发布器实例和13份源码身份；00:43后两次发布成功，50条已完成Git命令均成功。这只覆盖该次核查及对应日志，不证明当前持续在线或网页持续新鲜度。
