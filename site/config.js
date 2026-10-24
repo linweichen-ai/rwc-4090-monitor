@@ -1,5 +1,5 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status24";
+window.RWC_ASSET_VERSION = "20261025-status25";
 window.RWC_CONFIG = {
   "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
   "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
@@ -10,13 +10,13 @@ window.RWC_CONFIG = {
   "futureToleranceMs": 60000,
   "apiFallbackAgeMs": 120000,
   "stage": {
-    "delivery": "当前论文为8页V6私有预备稿。已完成一次五分钟有限测量：两条合成文件路径分别在发布确认后15.564秒和0.608秒首次读到正确内容。",
-    "deploy": "本次只更新阶段说明，生产取数逻辑和发布参数保持。测量中的两条静态路径不能代表网页持续获得新快照。",
+    "delivery": "当前论文为8页V6私有预备稿。已用既有20图结果补齐逐图描述表，原始数值及汇总通过独立复算。",
+    "deploy": "每120秒发布一次的分钟槽候选暂不实施；其等待时间可能让读数过期。原设计没有完整模拟备用通道，不能据此宣称整个系统必然失败。",
     "nextSteps": [
-      "豆包比较两种固定时间槽取数方案，先给时间预算、失败反例和发布恢复设计，再决定是否实现。",
-      "继续完成持续刷新和异常场景验收；研究检查及新真实20图实验仍未执行。"
+      "豆包只评估一次每60秒发布与不可变分钟槽的组合，纳入备用通道、时钟偏差和异常恢复；尚未实现或上线。",
+      "完成逐图附注的措辞验收，继续持续刷新和异常场景验证。"
     ],
-    "validity": "21轮观察中首次匹配后无回退；独立核对43份正文通过。但末轮请求存在至少1毫秒截止偏差，不能称测量协议全通过。网页持续新鲜度仍未通过，无新增科学实验结果。",
-    "achievement": "原始测量、独立复算和下一阶段设计任务保存到私有GitHub；公开页面展示脱敏结果，V6论文通过私有入口阅读。"
+    "validity": "本轮分析复用了旧图和旧数值，没有新增科学实验或检测成绩。网页持续新鲜度仍未通过；生产取数逻辑和当前参数保持。",
+    "achievement": "原始设计、独立审查、完整逐图表和后续任务已同步私有GitHub。论文通过私有入口阅读，公开页面只展示脱敏进度。"
   }
 };
