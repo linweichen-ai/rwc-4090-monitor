@@ -1,5 +1,5 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status19";
+window.RWC_ASSET_VERSION = "20261025-status20";
 window.RWC_CONFIG = {
   "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
   "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
@@ -10,13 +10,13 @@ window.RWC_CONFIG = {
   "futureToleranceMs": 60000,
   "apiFallbackAgeMs": 120000,
   "stage": {
-    "delivery": "当前论文为已验收的8页V6私有阅读稿；登录下载得到的文件字节与验收版本一致。监控L4 R2的26项诊断与50项页面测试已通过，诊断面板已上线。",
-    "deploy": "本轮页面实际出现252秒和199秒旧读数，随后由新数据自动恢复；持续新鲜度仍未通过。对应固定日志窗口中6次后台发布成功，后台成功不能代替网页及时更新。",
+    "delivery": "当前论文为已验收的8页V6私有预备稿；监控诊断面板已上线。豆包的新鲜度复现初版已收到，文件身份核对通过，完整验收已退回修订。",
+    "deploy": "网页此前已观察到旧读数过期，持续新鲜度仍未通过。初版复现有响应延迟模型、统计判据和双标签证据缺口，尚无新修复部署。",
     "nextSteps": [
-      "豆包正在用冻结原版前端和独立虚拟时钟复现发布、冷却与轮询错开的问题；收到原件后独立验收，再决定修订方案。",
+      "豆包正在修正复现脚本和报告，补齐响应头与正文、双标签时间轴和固定采样相位；收到修订原件后独立验收。",
       "继续补齐持续更新与窄屏验收；45秒研究检查及新真实20图实验仍未执行。"
     ],
-    "validity": "本轮只增加时效问题证据与离线复现任务，尚无修复部署或新科学实验。没有放宽180秒过期线、改变取数参数或重启发布器；静态反例尚不能解释每次现场延迟。",
-    "achievement": "V6正文与PDF已同步私有GitHub；匿名访问论文仍受权限保护。GitHub内嵌PDF预览异常，可使用文件页下载入口。论文仍为预备稿，方法检测性能未评测。"
+    "validity": "60秒发布在一个合成场景中改善了末次读数年龄，但仍有过期窗口；不能写成零改善，也不能称已解决。当前阶段没有新增科学实验。",
+    "achievement": "V6正文与PDF已同步私有GitHub。登录后可查看；GitHub内嵌PDF预览异常时可用文件页下载入口。论文仍为预备稿，方法检测性能未评测。"
   }
 };
