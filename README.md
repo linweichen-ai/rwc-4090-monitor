@@ -1,5 +1,15 @@
 # 双 RTX 4090 公开监控与进度
 
+**[阅读当前V6 Markdown（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/manuscript.md)** · [阅读已验收V5 PDF（7页，私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_preliminary.pdf) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
+
+2026-10-25 当前阶段（status16）：V6 R1原件与完整差异已核验，双人完整审查通过，已原样采用为当前Markdown写作稿并同步私有GitHub；本轮只澄清写作边界与未来验证对照，没有新增科学实验。已验收PDF仍为7页V5，尚不包含本轮修订；V6 PDF任务已于00:59交原豆包会话，尚未交付。
+
+00:47的单次只读核查确认原发布器实例和13份源码身份；00:43后两次发布成功，50条已完成Git命令均成功。这只覆盖该次核查及对应日志，不证明当前持续在线或网页持续新鲜度。
+
+浏览器已恢复。00:51页面曾保留38分59秒旧样本；重载后取得较新的API样本，随后又拒绝倒退数据，因此网页持续刷新与新鲜度仍未通过验收。监控L4 R2原包身份与清单已核验，独立测试待完成，候选未部署；45秒研究检查和真实20图实验均未执行。
+
+以下保留各历史时点的原记录；其中“当前”“最新”及连接状态仅指当时情况。
+
 **[阅读当前V5 PDF（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_preliminary.pdf)** · [阅读V5正文（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_manuscript.md) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
 
 2026-10-25 阶段记录（status15）：当前阅读版仍为已验收的7页V5私有PDF。V6候选补充适用边界和验证对照，页面静态审查发现的一处测试层级误述已退回并在R1可见段落中修正；完整原件和差异尚待核验，未采用。另一机制候选仅保留为未解决的诊断问题，没有新增科学实验或创新结论。浏览器扩展更新要求暂时中断了页面验收；完整监控L4 R2包仍未接收，候选未独立运行部署。
