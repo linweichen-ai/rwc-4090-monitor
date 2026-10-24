@@ -1,5 +1,5 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status27";
+window.RWC_ASSET_VERSION = "20261025-status28";
 window.RWC_CONFIG = {
   "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
   "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
@@ -10,13 +10,13 @@ window.RWC_CONFIG = {
   "futureToleranceMs": 60000,
   "apiFallbackAgeMs": 120000,
   "stage": {
-    "delivery": "当前论文仍为V6私有预备稿，阅读入口提供在线正文、8页PDF和已验收的逐图附注。",
-    "deploy": "L9候选未通过上线验收：发布失败恢复、旧事务兼容和网页旧响应检查存在源码缺陷，已停止本候选继续调试。",
+    "delivery": "当前论文为V6私有预备稿：入口提供在线全文、8页PDF和已验收的逐图附注。",
+    "deploy": "已向豆包派发当前线上前端的小范围修复：请求满8秒后，迟到的校验结果不能更新页面，也不能干扰下一次请求。",
     "nextSteps": [
-      "原样保存61份交付文件及全部11轮日志；三路审查已区分产品缺陷、测试夹具问题和未运行项目。",
-      "下一步核实可持续在线的HTTPS数据入口，再验证采样到网页显示、停更过期和恢复最新数据。"
+      "先固定测试时序，再对照原版与修订版；保留失败日志和逐事件轨迹，收到交付后独立验收。",
+      "持续新鲜度仍待解决；继续核实可长期在线的HTTPS数据入口，再验证停更、过期与恢复。"
     ],
-    "validity": "线上仍为原监控版本，持续新鲜度尚未通过。模拟反例不能当作精确现场测量；没有新增科学实验或检测成绩。",
-    "achievement": "原件、失败证据和拒绝上线的原因已同步私有GitHub。论文V6保持，点击论文入口可直接在线阅读。"
+    "validity": "修复尚未交付或上线，当前继续使用原监控版本。L9候选已关闭；持续新鲜度尚未通过，没有新增科学实验或检测成绩。",
+    "achievement": "修订任务、验收边界和发送记录已同步私有GitHub。论文仍是V6，点击入口可在线阅读。"
   }
 };
