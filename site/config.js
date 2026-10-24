@@ -1,5 +1,5 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status22";
+window.RWC_ASSET_VERSION = "20261025-status23";
 window.RWC_CONFIG = {
   "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
   "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
@@ -10,13 +10,13 @@ window.RWC_CONFIG = {
   "futureToleranceMs": 60000,
   "apiFallbackAgeMs": 120000,
   "stage": {
-    "delivery": "当前论文仍为已验收的8页V6私有预备稿。测量工具初版已收到，独立审查发现实际请求路径与证据保护缺陷，已退回修订。",
-    "deploy": "原监控实例保持运行；最近核查窗口内有38次完成发布，源码身份一致。后台发布成功不等于网页持续新鲜，尚无新修复上线。",
+    "delivery": "当前论文为已验收的8页V6私有预备稿。测量工具第一轮修订已收到，多数问题已修复，仍有正文超限停止和观察截止两处边界待补。",
+    "deploy": "02:55核查窗口确认原监控实例、源码身份及38次完成发布；这不等于网页持续新鲜。本阶段只同步进度，没有部署新的取数逻辑。",
     "nextSteps": [
-      "豆包修正路径、完整404判定、超时证据和防重复运行保护；收到原件后核验，随后再决定是否开始有限真实测量。",
-      "继续补齐持续更新与窄屏验收；45秒研究检查及新真实20图实验仍未执行。"
+      "豆包补齐两处窄修正及相应反例；收到完整原件后独立验收，再开展有限真实测量。",
+      "继续完成持续刷新和异常场景验收；研究检查及新真实20图实验仍未执行。"
     ],
-    "validity": "测量工具的作者自测不能覆盖实际源码缺陷。尚未进行真实路径测量，也没有新增科学实验结果；监控持续新鲜度仍未通过。",
-    "achievement": "测量初版原件、失败日志、独立验收和修订任务已同步私有GitHub；公开页面只显示脱敏进度，V6论文入口保持私有。"
+    "validity": "作者报告35项自测通过，但独立源码审查仍发现两个边界缺口。真实测量尚未开始，持续网页新鲜度仍未通过，没有新增科学实验结果。",
+    "achievement": "修订原件、失败日志、独立审查及下一轮任务已同步私有GitHub；公开页面仅展示脱敏进度，V6论文通过私有入口阅读。"
   }
 };
