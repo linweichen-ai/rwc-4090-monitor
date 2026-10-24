@@ -1,5 +1,13 @@
 # 双 RTX 4090 公开监控与进度
 
+2026-10-24 最新阶段（status13）：当前论文仍是已验收的7页V5私有阅读版，可从下方入口查看。豆包已交付监控L4 R2声明；可见差异中的两项诊断问题经双人静态复核通过，但完整ZIP尚未收到，未独立执行或部署。研究初版分析原件已收到并归档，修订稿继续澄清方法与对照，没有新增科学实验。
+
+**[阅读当前V5 PDF（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_preliminary.pdf)** · [阅读V5冻结正文（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_manuscript.md) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
+
+23:28:32的单次捕获确认原发布器实例和13份源码一致。当前日志快照覆盖有缺口，与已配置的轮转相符：本次当前日志从23:08:35开始，缺少此前22:59截点后的前段，不能用状态序号推算整个区间成功次数。捕获后段可见10条发布成功记录（pub130–139），239条完成命令均成功，无后段新增失败；截点时下一轮尚无完成记录，不记成败。这些结论不覆盖缺失前段，也不覆盖网页持续时效。此前一次push失败曾自动恢复，原因仍未知。
+
+下一步接收完整监控原件并做独立窄验收。网页持续新鲜度仍未通过；后端发布成功不保证浏览器取到新样本。45秒研究检查和真实20图实验均未运行。以下保留历史时点记录。
+
 2026-10-24 最新阶段（status12）：V5私有阅读版已验收，仍可通过以下链接阅读。监控L4 R1由豆包声明已交付，但完整原件尚未在本地收到；聊天差异还存在两处诊断误述，23:14已要求修订为R2。候选没有运行或部署，线上监控程序保持原版。
 
 **[阅读当前V5 PDF（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_preliminary.pdf)** · [阅读V5冻结正文（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_manuscript.md) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
