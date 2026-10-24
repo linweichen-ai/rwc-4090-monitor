@@ -246,3 +246,30 @@ body {
   margin-top: 8px;
   color: #6b7280;
 }
+
+/* D2 A14：窄屏（≤640px）状态标题布局修订。
+   仅在 max-width:640px 内重排 .status-panel：图标与标题在上方自然横排、
+   标题允许正常换行（min-width:0 让 flex 项可收缩），完整说明占下方整行。
+   不隐藏/截断/缩小字号，不引入横向滚动或固定高度；状态字句、颜色语义不变。
+   641px 及以上桌面布局保持原样（本块不命中）。 */
+@media (max-width: 640px) {
+  .status-panel {
+    flex-wrap: wrap;
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 6px;
+  }
+  .status-icon {
+    flex: 0 0 auto;
+  }
+  #status-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: break-word;
+  }
+  .status-detail {
+    flex: 0 0 100%;
+    width: 100%;
+  }
+}
