@@ -1,5 +1,11 @@
 # 双 RTX 4090 公开监控与进度
 
+**[阅读当前V6 PDF（8页，私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v6_preliminary.pdf)** · [阅读当前正文](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/manuscript.md) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
+
+2026-10-25 当前阶段（status18）：V6 PDF原件身份、全文与67段数学、表格和引用核对通过；8页独立渲染逐页视觉检查通过，已同步私有GitHub，保留历史V5。当前正文与PDF一致。本轮没有新增研究实验或检测性能。监控L4 R2的76项检查通过并已上线诊断面板，01:17至01:24短时浏览器观察中样本5409推进到5427；这不是持续新鲜度保证。45秒研究检查及真实20图实验仍未执行。
+
+以下为历史时点记录，其中“当前”“最新”均按该时点理解。
+
 **[阅读当前V6 Markdown（私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/manuscript.md)** · [阅读已验收V5 PDF（7页，私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v5_preliminary.pdf) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
 
 2026-10-25 当前阶段（status17）：监控L4 R2原包身份、CRC与77项清单已核验，独立26项诊断和50项页面测试全部通过。本次发布采用豆包的更新诊断面板，只显示请求来源、时间、HTTP状态、响应声明及冷却原因，保留已有取数与校验规则、部署配置和后端进程。页面测试包含三次离线合成fixture调用，不是服务器或真实GPU实验。诊断功能通过不等于缓存或持续刷新问题已解决。V6正文已同步私有GitHub；V6 PDF仍在排版验收，已验收PDF继续为7页V5。研究45秒检查和真实20图均未执行。
