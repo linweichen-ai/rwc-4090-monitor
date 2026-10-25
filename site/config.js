@@ -1,8 +1,8 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status37";
+window.RWC_ASSET_VERSION = "20261025-status38";
 window.RWC_CONFIG = {
-  "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
-  "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
+  "telemetryUrl": "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/telemetry",
+  "contentsApiUrl": "",
   "paperUrl": "https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/README.md",
   "refreshIntervalMs": 15000,
   "fetchTimeoutMs": 8000,
@@ -11,12 +11,12 @@ window.RWC_CONFIG = {
   "apiFallbackAgeMs": 120000,
   "stage": {
     "delivery": "私有论文入口提供V6在线全文、8页PDF、逐图附注和复现协议说明。",
-    "achievement": "数据服务已完成私有部署。上传器的数值核对、停止指令和清理失败后停止逻辑通过7项独立检查；传输层仍需修订。",
-    "deploy": "修订包已收到并归档。Windows检查发现合法响应读取和认证拒绝处理仍有缺陷，已交豆包进一步修复；当前页面继续使用原数据来源。",
+    "achievement": "上传器修订通过34项Windows测试及6项独立边界检查。真实脱敏样本已上传，确认记录与公开接口回读一致。",
+    "deploy": "本页已切换到独立实时数据接口，上传器每30秒串行更新。正在观察网页连续新样本；原Git发布器保留。",
     "nextSteps": [
-      "修复传输层并完成独立验收，再接入真实样本、观察网页连续更新。",
-      "保留停更恢复结论，补齐持续新鲜度及断网、休眠恢复证据。"
+      "完成浏览器至少10次新样本的连续观察，核对每次样本年龄。",
+      "继续补齐断网和休眠恢复证据，保留所有失败与验证限制。"
     ],
-    "validity": "私有部署和离线检查不代表连续实时监控通过。论文V6仍为初步稿，本轮没有新增科学实验或检测成绩。"
+    "validity": "当前只确认离线检查和真实接入；持续新鲜度观察尚未完成。论文V6仍为初步稿，本轮没有新增科学实验或检测成绩。"
   }
 };
