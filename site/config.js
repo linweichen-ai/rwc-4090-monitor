@@ -1,5 +1,5 @@
 /* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status34";
+window.RWC_ASSET_VERSION = "20261025-status35";
 window.RWC_CONFIG = {
   "telemetryUrl": "https://raw.githubusercontent.com/linweichen-ai/rwc-4090-monitor/telemetry/telemetry/latest.json",
   "contentsApiUrl": "https://api.github.com/repos/linweichen-ai/rwc-4090-monitor/contents/telemetry/latest.json",
@@ -11,12 +11,12 @@ window.RWC_CONFIG = {
   "apiFallbackAgeMs": 120000,
   "stage": {
     "delivery": "私有论文入口提供V6在线全文、8页PDF、逐图附注和复现协议说明。",
-    "deploy": "监控发布器已恢复为单实例运行；连续新鲜度、断网和休眠恢复仍未通过。",
+    "achievement": "已接收实时数据服务初版并独立重跑26项测试；进一步核对发现真实数据库接入与异常处理缺陷，已交豆包定点修订。",
+    "deploy": "新数据服务仍为私有、尚未发布；现有监控页面保持，暂未切换数据来源。",
     "nextSteps": [
-      "提供可长期在线的HTTPS数据入口，并验证连续新样本的网页接收。",
-      "继续完成断网和休眠情况下的发布恢复验收。"
+      "验收修订后的数据服务，再验证真实上传和网页连续接收新样本。",
+      "保留现有停更恢复结论，继续补齐持续新鲜度及断网、休眠恢复证据。"
     ],
-    "validity": "本轮是实际监控恢复验收，不代表连续实时监控通过。V6仍为初步稿，没有新增科学实验或检测成绩。",
-    "achievement": "一次受控停更后，网页自动显示数据过期；刷新仍按旧采样时间显示过期。恢复发布后，网页已采用新样本，观察时年龄约73秒。"
+    "validity": "初版自测通过不代表可以上线，连续实时监控尚未通过。论文V6仍为初步稿，本轮没有新增科学实验或检测成绩。"
   }
 };
