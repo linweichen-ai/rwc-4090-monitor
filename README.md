@@ -1,5 +1,7 @@
 # 双 RTX 4090 公开监控与进度
 
+2026-10-25 阶段（status36）：数据服务修订已通过47项独立离线检查和实际构建，并完成私有部署。托管功能检查12/13，慢正文时限限制如实保留；新服务尚未接入公开页面。上传器初版虽通过19项自测和本机复跑，独立检查仍发现方法、跨语言数值及停止/超时缺陷，已交回定点修订。当前监控数据来源保持，持续新鲜度未通过；V6与科学实验保持。
+
 2026-10-25 09:02阶段（status35）：实时数据服务初版已收到，原26项测试独立重跑通过，但真实数据库接入和异常处理仍存在缺陷，已发回豆包定点修订，暂未采用。新服务仍为私有、未发布，现有监控数据来源保持。持续新鲜度尚未通过；论文仍是V6初步稿，本轮没有新增科学实验。以下历史记录中的版本和“当前”按各记录时点理解。
 
 **[阅读当前V6 PDF（8页，私有）](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/rwc_v6_preliminary.pdf)** · [阅读当前正文](https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/manuscript.md) · [打开监控网页](https://linweichen-ai.github.io/rwc-4090-monitor/)
