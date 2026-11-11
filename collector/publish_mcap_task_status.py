@@ -69,7 +69,7 @@ def build_status() -> dict:
     services = [
         probe("SAM3 分割", "http://127.0.0.1:29766/health", "真实图像请求此前通过", 83),
         probe("Qwen3-VL", "http://127.0.0.1:29878/health", "结构化真实图像请求此前通过", 1482),
-        probe("标注工作台", "http://127.0.0.1:8767/health", "真实 MCAP 已成功载入", None),
+        probe("标注工作台", "http://127.0.0.1:8767/", "真实 MCAP 已成功载入", None),
     ]
     milestones = [
         {"label": "5090 推理服务", "state": "passed",
