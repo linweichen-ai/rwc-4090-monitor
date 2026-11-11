@@ -1,7 +1,14 @@
 window.GPU_DASHBOARD_CONFIG = {
   apiUrl: "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/dashboard",
+  historyUrl: "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/dashboard/history",
   refreshIntervalMs: 15000,
+  historyRefreshIntervalMs: 60000,
   staleAfterMs: 180000,
+  alertThresholds: {
+    memoryPercent: 90,
+    temperatureC: 80,
+    staleSeconds: 180
+  },
   report: {
     updatedAt: "2026-11-11T09:30:00+08:00",
     results: [

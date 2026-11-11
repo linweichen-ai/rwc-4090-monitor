@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>GPU 统一监控台</title>
-  <link rel="stylesheet" href="styles.css?v=20261111-console2">
+  <link rel="stylesheet" href="styles.css?v=20261111-console3">
 </head>
 <body>
   <header class="topbar">
@@ -73,6 +73,25 @@
       </div>
     </section>
 
+    <section class="history-section" aria-labelledby="history-title">
+      <div class="compact-heading">
+        <div class="heading-inline"><h2 id="history-title">GPU 历史趋势</h2><span id="history-status">正在读取历史</span></div>
+        <div class="history-controls">
+          <label class="heading-control">范围 <select id="history-hours"><option value="1">1 小时</option><option value="6">6 小时</option><option value="12">12 小时</option><option value="24" selected>24 小时</option><option value="48">48 小时</option></select></label>
+          <button id="history-refresh" class="mini-button" type="button">刷新历史</button>
+          <button id="notification-button" class="mini-button" type="button">开启浏览器通知</button>
+        </div>
+      </div>
+      <div class="history-legend"><span class="legend-util">利用率</span><span class="legend-memory">显存占比</span><span class="legend-temp">温度</span><span>曲线按统一 0–100 标尺展示；温度按 100°C 标尺</span></div>
+      <div id="history-charts" class="history-grid"><p class="history-empty">历史数据开始积累后显示趋势曲线</p></div>
+      <div class="change-log">
+        <div class="change-log-head"><strong>显存变化记录</strong><span id="change-log-count">—</span><small>记录相邻历史点中 ≥256 MiB 的变化及任务数变化</small></div>
+        <div class="change-table-scroll">
+          <table class="change-table"><thead><tr><th>时间</th><th>节点 / GPU</th><th>显存变化</th><th>变化量</th><th>任务数</th></tr></thead><tbody id="change-log-body"><tr><td colspan="5" class="empty-process">等待历史样本</td></tr></tbody></table>
+        </div>
+      </div>
+    </section>
+
     <section class="intelligence" aria-labelledby="results-title">
       <div class="compact-heading">
         <h2 id="results-title">最新结果与结论</h2>
@@ -112,7 +131,7 @@
     </article>
   </template>
 
-  <script src="config.js?v=20261111-console"></script>
-  <script src="js/app.js?v=20261111-console2"></script>
+  <script src="config.js?v=20261111-console3"></script>
+  <script src="js/app.js?v=20261111-console3"></script>
 </body>
 </html>
