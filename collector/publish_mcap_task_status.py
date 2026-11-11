@@ -110,11 +110,11 @@ def main() -> int:
     result = subprocess.run(
         ["ssh", "-o", "BatchMode=yes", "-o", "ConnectTimeout=8", "factory-5090",
          "/home/clw/.local/bin/gpu-dashboard-task-upload"],
-        input=payload, text=True, capture_output=True, timeout=25, check=False)
+        input=payload.encode("utf-8"), capture_output=True, timeout=25, check=False)
     if result.returncode:
-        sys.stderr.write(result.stderr or result.stdout)
+        sys.stderr.write((result.stderr or result.stdout).decode("utf-8", errors="replace"))
         return result.returncode
-    print(result.stdout.strip())
+    print(result.stdout.decode("utf-8", errors="replace").strip())
     return 0
 
 
