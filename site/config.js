@@ -1,8 +1,10 @@
 window.GPU_DASHBOARD_CONFIG = {
   apiUrl: "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/dashboard",
   historyUrl: "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/dashboard/history",
+  taskUrl: "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/dashboard/task",
   refreshIntervalMs: 15000,
   historyRefreshIntervalMs: 60000,
+  taskRefreshIntervalMs: 30000,
   staleAfterMs: 180000,
   alertThresholds: {
     memoryPercent: 90,

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>GPU 统一监控台</title>
-  <link rel="stylesheet" href="styles.css?v=20261111-console3">
+  <link rel="stylesheet" href="styles.css?v=20261111-console4">
 </head>
 <body>
   <header class="topbar">
@@ -50,6 +50,16 @@
       <div><span>最长运行任务</span><strong id="insight-longest">—</strong><small id="insight-longest-detail">等待数据</small></div>
       <div><span>最高温度</span><strong id="insight-temperature">—</strong><small id="insight-temperature-detail">等待数据</small></div>
       <div><span>运行告警</span><strong id="insight-alerts">—</strong><small id="insight-alerts-detail">等待数据</small></div>
+    </section>
+
+    <section class="mcap-task" aria-labelledby="mcap-task-title">
+      <div class="compact-heading">
+        <div class="heading-inline"><h2 id="mcap-task-title">MCAP 标注任务</h2><span id="mcap-task-updated">正在读取任务回执</span></div>
+        <span id="mcap-task-state" class="task-state unknown">等待数据</span>
+      </div>
+      <div id="mcap-task-body" class="mcap-task-body">
+        <p class="task-placeholder">正在读取“查找两个已标注 MCAP 文件”的脱敏进度。</p>
+      </div>
     </section>
 
     <section class="monitor-section" aria-labelledby="nodes-title">
@@ -131,7 +141,7 @@
     </article>
   </template>
 
-  <script src="config.js?v=20261111-console3"></script>
-  <script src="js/app.js?v=20261111-console3"></script>
+  <script src="config.js?v=20261111-console4"></script>
+  <script src="js/app.js?v=20261111-console4"></script>
 </body>
 </html>
