@@ -1,132 +1,71 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="zh-CN">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>双 RTX 4090 公开脱敏监控工作台</title>
-<!-- L2：所有静态资源 URL 与交付版本绑定，发版即换 URL，避免旧 config
-     与新 app 混合（中间缓存不会把新版本页面和旧脚本拼装在一起）。
-     RWC_ASSET_VERSION 必须与 site/config.js 中的值一致。 -->
-<link rel="stylesheet" href="styles.css?v=20261025-status42">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>GPU 算力监控与研究进展</title>
+  <link rel="stylesheet" href="styles.css?v=20261111-unified">
 </head>
 <body>
-<header class="site-header">
-  <h1>双 RTX 4090 公开脱敏监控</h1>
-  <p class="subtitle">只展示公开、脱敏的运行指标；不含用户名、路径、命令行等私有信息</p>
-  <div id="demo-banner" class="demo-banner" hidden>
-    <strong>模拟数据演示（?demo=1）</strong>：以下数据全部由浏览器本地生成，
-    不是真实监控结果。
-    <span id="demo-controls" class="demo-controls">
-      <button type="button" data-demo-state="normal">模拟正常</button>
-      <button type="button" data-demo-state="stale">模拟过期</button>
-      <button type="button" data-demo-state="error">模拟网络错误</button>
-    </span>
-  </div>
-</header>
-
-<main class="container">
-  <!-- 总体状态条 -->
-  <section id="status-panel" class="status-panel status-disconnected"
-           aria-live="polite">
-    <span id="status-icon" class="status-icon">○</span>
-    <span id="status-text">尚未连接</span>
-    <span id="status-detail" class="status-detail"></span>
-  </section>
-
-  <!-- 数据时刻 -->
-  <section class="meta-grid" aria-label="数据时刻">
-    <div class="meta-item">
-      <span class="meta-label">数据采样</span>
-      <span id="meta-sampled" class="meta-value">—</span>
-      <span id="meta-sampled-age" class="meta-sub">—</span>
+  <div class="noise" aria-hidden="true"></div>
+  <header class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow">COMPUTE OBSERVATORY · PUBLIC SANITIZED VIEW</p>
+      <h1>GPU 算力监控<br><span>与研究进展</span></h1>
+      <p class="lede">同一页面查看双 RTX 4090 与双 RTX 5090。数据过期会明确标记，不把监控在线等同于实验成功。</p>
     </div>
-    <div class="meta-item">
-      <span class="meta-label">数据发布</span>
-      <span id="meta-published" class="meta-value">—</span>
-      <span id="meta-published-age" class="meta-sub">—</span>
-    </div>
-    <div class="meta-item">
-      <span class="meta-label">最近有效获取</span>
-      <span id="meta-fetched" class="meta-value">—</span>
-      <span id="meta-fetched-sub" class="meta-sub">—</span>
-    </div>
-  </section>
-
-  <!-- GPU 卡片 -->
-  <section class="gpu-grid" id="gpu-grid" aria-label="GPU 指标"></section>
-
-  <!-- 任务显存 -->
-  <section class="tasks-panel" aria-label="任务显存占用">
-    <h2>任务显存占用（随机别名）</h2>
-    <p class="panel-note">别名与用户名、路径、命令行无关，每次采集器重启后重新分配。</p>
-    <div id="tasks-container"></div>
-  </section>
-
-  <!-- L4 更新诊断（默认折叠，仅定位证据，不改变取数） -->
-  <details class="diag-panel" id="diag-panel">
-    <summary>更新诊断（最近一次请求；仅定位用，默认折叠，不改变取数）</summary>
-    <div class="diag-body">
-      <p><span class="diag-label">当前在途</span><span id="diag-inflight">空闲</span></p>
-      <p><span class="diag-label">最近完成</span><span id="diag-finished">—</span></p>
-      <p><span class="diag-label">渠道</span><span id="diag-channel">—</span></p>
-      <p><span class="diag-label">HTTP 状态</span><span id="diag-http">—</span></p>
-      <p><span class="diag-label">结果</span><span id="diag-outcome">—</span></p>
-      <p><span class="diag-label">响应声明</span><span id="diag-declared">—</span></p>
-      <p><span class="diag-label">API 备用源</span><span id="diag-api-next">—</span></p>
-      <p class="panel-note">只记录本标签实际请求的观察：已完成请求最多保留一条、
-        外加当前在途状态；不改变轮询、备用选择、限流、超时与校验，也不增加请求。
-        “已接受”不等于样本仍新鲜；被拒响应的时刻/序号仅为“响应声明”，不是已采用
-        读数；最近有效获取仍以页面上“最近有效获取”为准。</p>
-    </div>
-  </details>
-
-  <!-- 阶段成果 / 下一步 -->
-  <section class="stage-panel">
-    <h2>阶段成果与下一步</h2>
-    <div class="stage-block">
-      <h3>本阶段成果</h3>
-      <p id="stage-achievement"></p>
-    </div>
-    <div class="stage-block">
-      <h3>下一步</h3>
-      <ul id="stage-next"></ul>
-    </div>
-    <div class="stage-cols">
-      <div class="stage-col">
-        <h3>实现交付</h3>
-        <p id="stage-delivery"></p>
+    <div class="hero-status" aria-live="polite">
+      <div class="pulse-wrap"><span id="global-pulse" class="pulse"></span></div>
+      <div>
+        <p id="global-status" class="global-status">正在连接数据入口</p>
+        <p id="global-detail" class="global-detail">—</p>
       </div>
-      <div class="stage-col">
-        <h3>部署状态</h3>
-        <p id="stage-deploy"></p>
-      </div>
-      <div class="stage-col">
-        <h3>实验有效性</h3>
-        <p id="stage-validity"></p>
-      </div>
+      <button id="refresh-button" class="refresh-button" type="button">立即刷新</button>
     </div>
-  </section>
-
-  <!-- 私有论文 -->
-  <section class="paper-panel">
-    <h2>私有论文稿件</h2>
-    <p class="panel-note">公开页面不包含论文算法细节。</p>
-    <a id="paper-button" class="paper-button" href="#" rel="noopener">
-      查看私有论文（需权限）
-    </a>
-  </section>
-
-  <footer class="site-footer">
-    <p>数据每 15 秒无凭据拉取一次；采样年龄超过 180 秒即标记“已过期”。
-       过期不等于服务器离线。</p>
-    <p id="footer-instance"></p>
-  </footer>
-</main>
-
-<script src="config.js?v=20261025-status42"></script>
-<script src="js/canonical.js?v=20261025-status42"></script>
-<script src="js/validate.js?v=20261025-status42"></script>
-<script src="js/demo.js?v=20261025-status42"></script>
-<script src="js/app.js?v=20261025-status42"></script>
+  </header>
+  <main>
+    <section class="summary-strip" aria-label="总体摘要">
+      <div><span class="summary-label">监控节点</span><strong id="summary-nodes">2</strong></div>
+      <div><span class="summary-label">在线节点</span><strong id="summary-online">—</strong></div>
+      <div><span class="summary-label">可见 GPU</span><strong id="summary-gpus">—</strong></div>
+      <div><span class="summary-label">最近刷新</span><strong id="summary-refresh">—</strong></div>
+    </section>
+    <section class="section-block" aria-labelledby="nodes-title">
+      <div class="section-heading">
+        <div><p class="section-kicker">LIVE INFRASTRUCTURE</p><h2 id="nodes-title">双节点实时状态</h2></div>
+        <p>卡级利用率是瞬时采样；任务时长是进程运行时长，近似表示占卡时间。</p>
+      </div>
+      <div id="nodes" class="nodes-grid"></div>
+    </section>
+    <section class="section-block intelligence" aria-labelledby="results-title">
+      <div class="section-heading">
+        <div><p class="section-kicker">LATEST EVIDENCE</p><h2 id="results-title">最新结果与结论</h2></div>
+        <p id="report-updated">—</p>
+      </div>
+      <div class="evidence-layout">
+        <div><h3>最新结果</h3><div id="latest-results" class="result-list"></div></div>
+        <div class="conclusion-panel"><h3>当前结论</h3><div id="latest-conclusions"></div></div>
+      </div>
+      <div id="evidence-note" class="evidence-note"></div>
+    </section>
+    <section class="method-note" aria-labelledby="reading-title">
+      <p class="section-kicker">HOW TO READ</p><h2 id="reading-title">读数说明</h2>
+      <div class="method-grid">
+        <p><strong>显存占用</strong>显示每张卡总量、已用量及任务分摊；驱动和桌面进程可能造成无法完全归属的少量显存。</p>
+        <p><strong>占用者</strong>来自服务器本地映射；未授权公开的账号会显示稳定别名，不上传原始 PID、路径或完整命令。</p>
+        <p><strong>过期判定</strong>以采样时间为准；超过 180 秒显示过期。过期表示链路没有新样本，不等于服务器关机。</p>
+      </div>
+    </section>
+  </main>
+  <footer><span>GitHub Pages · 多地可访问</span><span>仅公开白名单监控信息</span></footer>
+  <template id="node-template">
+    <article class="node-card">
+      <div class="node-head"><div><p class="node-id"></p><h3 class="node-title"></h3></div><span class="status-chip"></span></div>
+      <p class="node-time"></p><div class="gpu-list"></div><div class="node-notes"></div>
+    </article>
+  </template>
+  <script src="config.js?v=20261111-unified"></script>
+  <script src="js/app.js?v=20261111-unified"></script>
 </body>
 </html>

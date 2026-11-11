@@ -1,22 +1,20 @@
-/* 公开部署配置：仅含公开快照地址、私有论文入口及已核实阶段说明。 */
-window.RWC_ASSET_VERSION = "20261025-status42";
-window.RWC_CONFIG = {
-  "telemetryUrl": "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/telemetry",
-  "contentsApiUrl": "",
-  "paperUrl": "https://github.com/linweichen-ai/mca-paper/blob/codex/mca-rwc-innovation/workstreams/rwc_4090/paper/README.md",
-  "refreshIntervalMs": 15000,
-  "fetchTimeoutMs": 8000,
-  "staleAfterMs": 180000,
-  "futureToleranceMs": 60000,
-  "apiFallbackAgeMs": 120000,
-  "stage": {
-    "delivery": "监控工作台与私有初稿已形成交付：双卡真实脱敏指标、任务显存可视化、V6在线全文和8页PDF入口。",
-    "achievement": "新数据链路完成一次受控暂停与恢复：旧样本超过180秒后显示过期，恢复上传后原页面未重载便取得新样本并恢复正常。",
-    "deploy": "继续使用已验收的日志修订与相同数据接口，原确认状态保留；日志内存256条、每文件1MiB、最多两个备份，既有47项与2项独立验收结果保持。",
-    "nextSteps": [
-      "继续现有监督，在约定有限运行窗口复核实际覆盖、存储和失败恢复记录。",
-      "保留历史故障与未确认结果；本机在线依赖不变，不新增自启动或无条件重启。"
+window.GPU_DASHBOARD_CONFIG = {
+  apiUrl: "https://rwc-4090-live-data.chenlinwei.chatgpt.site/api/dashboard",
+  refreshIntervalMs: 15000,
+  staleAfterMs: 180000,
+  report: {
+    updatedAt: "2026-11-11T09:30:00+08:00",
+    results: [
+      { label: "基础设施", title: "双 4090 与双 5090 已纳入同一监控面板", detail: "两台服务器均已只读核对为双卡配置；页面把卡级显存、利用率、温度、功耗和任务占用统一展示。" },
+      { label: "Static2", title: "已完成 6 次真实运行，但整段参考门槛为 0/6", detail: "现有证据尚不能支持全路径精度或漂移已经改善；离线特征深度支持不等同于在线定位效果。" },
+      { label: "Mask2Former", title: "R23 cg_only 仍是离线主线方案", detail: "已报告的提升只属于限定诊断范围，不能写成整体精度提升。" },
+      { label: "LabelAgent / MCA", title: "候选仍需真实回归与 GPU 试验", detail: "LabelAgent 的 29 例回归尚未执行；MCA/RWC 旧结果未超过同前端对照，真实 40 图 GPU pilot 未完成。" }
     ],
-    "validity": "本次只证明这一受控窗口，不扩大原浏览器观察，不代表真实断网、休眠恢复或长期无故障。V6仍为初步稿，本轮没有新增科学实验或检测成绩。"
+    conclusions: [
+      "监控链路可以证明服务器与 GPU 当前状态，但不能替代实验验收。",
+      "目前没有足够证据宣布 Static2 全路径定位改善，也没有足够证据宣布 MCA/RWC 超过对照。",
+      "下一阶段仍应先完成预先定义的真实实验、对照与验收条件，再更新方法结论。"
+    ],
+    note: "这是公开摘要，不包含服务器地址、凭据、算法细节、原始数据或未公开论文内容。结论按证据更新，不用运行中的 GPU 状态包装科研结果。"
   }
 };

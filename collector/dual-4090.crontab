@@ -1,0 +1,3 @@
+SHELL=/bin/bash
+PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+@reboot /usr/bin/flock -n /home/clw/.local/state/gpu-dashboard/dual-4090/collector.lock /bin/bash -lc 'set -a; . /home/clw/.config/gpu-dashboard/dual-4090.env; exec /usr/bin/python3 /home/clw/.local/lib/gpu-dashboard/gpu_dashboard_collector.py --node dual-4090 --interval 30 >> /home/clw/.local/state/gpu-dashboard/dual-4090/collector.log 2>&1'
