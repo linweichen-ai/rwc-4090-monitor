@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from urllib.request import urlopen
 
 OUTPUT_ROOT = Path(r"C:\Users\seer\Documents\ChatGPT\Seer2clw\outputs\labelagent_closed_loop_20261111")
+SLOPE_OVERLAY = Path(r"C:\Users\seer\Documents\ChatGPT\Seer2clw\outputs\sfl_cpd15y_stage2_20261110\slope_review\slope_candidate_overlay.png")
 
 
 def read_json(path: Path) -> dict:
@@ -17,6 +18,23 @@ def read_json(path: Path) -> dict:
         return json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return {}
+
+
+def file_time(path: Path, fallback: str) -> str:
+    try:
+        return datetime.fromtimestamp(path.stat().st_mtime, timezone.utc).isoformat(
+            timespec="milliseconds").replace("+00:00", "Z")
+    except OSError:
+        return fallback
+
+
+def normalized_time(value: object, fallback: str) -> str:
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed.astimezone(timezone.utc).isoformat(timespec="milliseconds").replace(
+            "+00:00", "Z")
+    except (TypeError, ValueError):
+        return fallback
 
 
 def bundle_paths() -> list[Path]:
@@ -58,6 +76,9 @@ def build_status() -> dict:
     last_state = str(receipt.get("last_state") or "尚无闭环回执")
     event_count = int(receipt.get("event_count") or 0)
     now = datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    receipt_time = normalized_time(receipt.get("as_of_event_time"), now)
+    replay_time = file_time(OUTPUT_ROOT / "frame0-gate-replay.json", receipt_time)
+    slope_time = file_time(SLOPE_OVERLAY, receipt_time)
 
     if complete:
         status, phase = "complete", "最小闭环已完成，等待任务侧最终汇总"
@@ -73,21 +94,30 @@ def build_status() -> dict:
     ]
     milestones = [
         {"label": "5090 推理服务", "state": "passed",
-         "detail": "SAM3 与视觉语言模型均已有真实图像响应证据"},
+         "detail": "SAM3 与视觉语言模型均已有真实图像响应证据",
+         "occurred_at": now},
         {"label": "机器候选导入", "state": "passed" if candidate_count else "running",
-         "detail": f"工作台当前读回 {candidate_count} 个机器候选"},
+         "detail": f"工作台当前读回 {candidate_count} 个机器候选",
+         "occurred_at": receipt_time},
         {"label": "闭环回执", "state": "passed" if event_count else "pending",
-         "detail": f"已记录 {event_count} 个状态事件；当前状态 {last_state}"},
+         "detail": f"已记录 {event_count} 个状态事件；当前状态 {last_state}",
+         "occurred_at": receipt_time},
         {"label": "人工确认", "state": "passed" if human_gate else "blocked",
-         "detail": f"人工真值 {truth_count} 个；未通过前不提升为真值"},
+         "detail": f"人工真值 {truth_count} 个；未通过前不提升为真值",
+         "occurred_at": now},
         {"label": "两个已标注 MCAP", "state": "passed" if complete else "running",
-         "detail": "正在按证据门槛核对两个最终文件"},
+         "detail": "正在按证据门槛核对两个最终文件",
+         "occurred_at": now},
     ]
     results = [
-        f"真实 MCAP 帧已登记，闭环回执包含 {event_count} 个事件。",
-        f"工作台安全读回：机器候选 {candidate_count} 个，人工真值 {truth_count} 个。",
-        "幂等重放已通过：重复登记不会增加事件或改写原回执。",
-        "难例 slope 已产生 1 个边界清晰的候选实例，保留在机器候选层。",
+        {"text": f"真实 MCAP 帧已登记，闭环回执包含 {event_count} 个事件。",
+         "occurred_at": receipt_time},
+        {"text": f"工作台安全读回：机器候选 {candidate_count} 个，人工真值 {truth_count} 个。",
+         "occurred_at": receipt_time},
+        {"text": "幂等重放已通过：重复登记不会增加事件或改写原回执。",
+         "occurred_at": replay_time},
+        {"text": "难例 slope 已产生 1 个边界清晰的候选实例，保留在机器候选层。",
+         "occurred_at": slope_time},
     ]
     blockers = [] if human_gate else ["需要人工确认精确候选及参考帧；目前不能自动提升为真值。"]
     caveats = [
