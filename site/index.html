@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark">
   <title>GPU 统一监控台</title>
-  <link rel="stylesheet" href="styles.css?v=20261111-console">
+  <link rel="stylesheet" href="styles.css?v=20261111-console2">
 </head>
 <body>
   <header class="topbar">
@@ -44,12 +44,33 @@
       <span class="toolbar-note">采样过期阈值 180 秒 · 运行时长为进程时长</span>
     </section>
 
+    <section id="runtime-insights" class="runtime-insights" aria-label="自动运行判断">
+      <div><span>推荐空闲卡</span><strong id="insight-best-gpu">—</strong><small id="insight-best-gpu-detail">等待数据</small></div>
+      <div><span>最大显存任务</span><strong id="insight-heaviest">—</strong><small id="insight-heaviest-detail">等待数据</small></div>
+      <div><span>最长运行任务</span><strong id="insight-longest">—</strong><small id="insight-longest-detail">等待数据</small></div>
+      <div><span>最高温度</span><strong id="insight-temperature">—</strong><small id="insight-temperature-detail">等待数据</small></div>
+      <div><span>运行告警</span><strong id="insight-alerts">—</strong><small id="insight-alerts-detail">等待数据</small></div>
+    </section>
+
     <section class="monitor-section" aria-labelledby="nodes-title">
       <div class="compact-heading">
         <h2 id="nodes-title">实时资源与任务占用</h2>
         <span>瞬时利用率 / 显存 / 温度 / 功耗 / 任务明细</span>
       </div>
       <div id="nodes" class="nodes-grid"></div>
+    </section>
+
+    <section class="task-index" aria-labelledby="tasks-title">
+      <div class="compact-heading">
+        <div class="heading-inline"><h2 id="tasks-title">统一任务清单</h2><span id="task-index-count">—</span></div>
+        <label class="heading-control">排序 <select id="task-sort"><option value="memory">显存占用</option><option value="runtime">运行时长</option><option value="started">启动时间</option><option value="owner">占用者</option></select></label>
+      </div>
+      <div class="task-index-scroll">
+        <table class="task-index-table">
+          <thead><tr><th>节点 / GPU</th><th>占用者</th><th>进程 / 类型 / 任务别名</th><th>启动时间</th><th>运行时长</th><th>显存</th><th>卡显存占比</th><th>进程 GPU</th></tr></thead>
+          <tbody id="task-index-body"><tr><td colspan="8" class="empty-process">等待实时数据</td></tr></tbody>
+        </table>
+      </div>
     </section>
 
     <section class="intelligence" aria-labelledby="results-title">
@@ -85,12 +106,13 @@
         <div><h3 class="node-title"></h3><span class="node-id"></span></div>
         <div class="node-state"><span class="status-chip"></span><span class="node-time"></span></div>
       </div>
+      <div class="node-summary"></div>
       <div class="gpu-list"></div>
       <details class="node-notes-wrap"><summary>采集说明</summary><div class="node-notes"></div></details>
     </article>
   </template>
 
   <script src="config.js?v=20261111-console"></script>
-  <script src="js/app.js?v=20261111-console"></script>
+  <script src="js/app.js?v=20261111-console2"></script>
 </body>
 </html>
